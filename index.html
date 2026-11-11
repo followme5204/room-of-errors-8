@@ -120,11 +120,11 @@ AFRAME.registerComponent('marble-floor', {
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(8 / 1.2, 8 / 1.2);
     tex.anisotropy = 8;
     if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-    const apply = () => {
-      const mesh = this.el.getObject3D('mesh'); if (!mesh) return;
-      mesh.material = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.25, metalness: 0.05 });
-    };
-    if (this.el.getObject3D('mesh')) apply(); else this.el.addEventListener('object3dset', apply, {once: true});
+    this.mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.25, metalness: 0.05 });
+  },
+  tick: function () {   // 다른 설정이 바닥 재질을 덮어쓰지 않도록 대리석 재질을 유지
+    const mesh = this.el.getObject3D('mesh');
+    if (mesh && mesh.material !== this.mat) mesh.material = this.mat;
   }
 });
 
