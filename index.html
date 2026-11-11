@@ -38,6 +38,43 @@ AFRAME.registerComponent('pose-clip', {
   update: function () { this.apply(); },
   apply: function () { if (this.mixer) this.mixer.setTime(this.data.time); }
 });
+
+/* 수액 라인: 수액백 아래 끝에서 환자 오른팔 주입 부위까지 늘어진 관을 그림 */
+AFRAME.registerComponent('iv-line', {
+  schema: { from: {type: 'selector'}, to: {type: 'selector'}, color: {default: '#f2f6f8'} },
+  init: function () {
+    this.mat = new THREE.MeshStandardMaterial({ color: this.data.color, roughness: 0.4, transparent: true, opacity: 0.85 });
+    this.mesh = null; this.last = '';
+    this.a = new THREE.Vector3(); this.b = new THREE.Vector3(); this.c = new THREE.Vector3();
+    this.box = new THREE.Box3();
+  },
+  findBone: function (root, names) {
+    for (const n of names) { const o = root.getObjectByName(n); if (o) return o; }
+    return null;
+  },
+  tick: function () {
+    const bag = this.data.from.getObject3D('mesh'), pt = this.data.to.getObject3D('mesh');
+    if (!bag || !pt) return;
+    // 수액백 아래 끝 (모델의 가장 낮은 지점)
+    this.box.setFromObject(bag);
+    this.a.set((this.box.min.x + this.box.max.x) / 2, this.box.min.y, (this.box.min.z + this.box.max.z) / 2);
+    // 환자 오른쪽 아래팔과 손 사이 (주입 부위)
+    const fore = this.findBone(pt, ['mixamorigRightForeArm', 'mixamorig:RightForeArm']);
+    const hand = this.findBone(pt, ['mixamorigRightHand', 'mixamorig:RightHand']);
+    if (!fore || !hand) return;
+    fore.getWorldPosition(this.b); hand.getWorldPosition(this.c);
+    this.b.lerp(this.c, 0.7);
+    const key = this.a.toArray().concat(this.b.toArray()).map(v => v.toFixed(3)).join();
+    if (key === this.last) return;
+    this.last = key;
+    // 가운데가 살짝 처지는 곡선
+    const mid = this.a.clone().lerp(this.b, 0.5); mid.y = Math.min(this.a.y, this.b.y) - 0.12;
+    const curve = new THREE.CatmullRomCurve3([this.a.clone(), mid, this.b.clone()]);
+    const geo = new THREE.TubeGeometry(curve, 40, 0.004, 6, false);
+    if (this.mesh) { this.mesh.geometry.dispose(); this.mesh.geometry = geo; }
+    else { this.mesh = new THREE.Mesh(geo, this.mat); this.el.sceneEl.object3D.add(this.mesh); }
+  }
+});
 </script>
 </head>
 <body>
@@ -49,6 +86,7 @@ AFRAME.registerComponent('pose-clip', {
     <select id="target" style="width:100%;font-size:14px;margin-top:2px">
       <option value="patient">환자</option>
       <option value="ivpole">수액폴대</option>
+      <option value="ivbag">수액백</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
   <label>앞·뒤 <span class="v" id="vz"></span><input type="range" id="pz" min="-4" max="-1" step="0.01"></label>
@@ -87,6 +125,12 @@ AFRAME.registerComponent('pose-clip', {
 
   <!-- 수액폴대 (iv_pole.glb, 높이 약 1.9m) — 침대 머리 쪽, 보는 사람 반대편 -->
   <a-entity id="ivpole" gltf-model="url(iv_pole.glb)" position="-0.8 0.95 -3.1" rotation="0 0 0"></a-entity>
+
+  <!-- 수액백 (iv_bag.glb) — 수액폴대 고리에 걸림. scale로 크기 조절 -->
+  <a-entity id="ivbag" gltf-model="url(iv_bag.glb)" scale="0.4 0.4 0.4" position="-0.45 1.47 -3.1" rotation="0 0 0"></a-entity>
+
+  <!-- 수액 라인: 수액백 아래 끝 → 환자 오른팔(아래팔~손등). 환자나 수액백을 움직이면 라인도 따라감 -->
+  <a-entity iv-line="from: #ivbag; to: #patient; color: #f2f6f8"></a-entity>
 
   <!-- 보는 사람: 침대 옆에 서서 환자를 바라봄 -->
   <a-entity id="rig" position="1.7 0 -2.5" rotation="0 90 0">
