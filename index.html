@@ -41,14 +41,14 @@ AFRAME.registerComponent('pose-clip', {
   apply: function () { if (this.mixer) this.mixer.setTime(this.data.time); }
 });
 
-/* 수액 세트: 수액백 라인 + PCA 라인이 3-way에서 합쳐져 환자 오른팔(아래팔~손등)로 들어감.
+/* 수액 세트: 수액백 → 인퓨전펌프 → 3-way ← PCA 라인, 3-way에서 합쳐져 환자 오른팔(아래팔~손등)로 들어감.
    3-way 손잡이가 가리키는 포트가 막힌 쪽(OFF).
    pcaClosed: true  → 손잡이가 PCA 포트 쪽 = PCA 차단 (E5 오류)
               false → 손잡이가 빈 쪽 = 세 방향 모두 열림 (정상)
    3-way를 클릭하면 손잡이를 돌려 교정함 */
 AFRAME.registerComponent('iv-set', {
   schema: { bag: {type:'selector'}, pca: {type:'selector'}, patient: {type:'selector'},
-            threeway: {type:'selector'}, pcaClosed: {default: true} },
+            threeway: {type:'selector'}, pump: {type:'selector'}, pcaClosed: {default: true} },
   init: function () {
     const T = THREE;
     this.tubeMat = new T.MeshStandardMaterial({ color:'#f2f6f8', roughness:0.4, transparent:true, opacity:0.85 });
@@ -86,22 +86,58 @@ AFRAME.registerComponent('iv-set', {
   tick: function () {
     const V = THREE.Vector3, A = new V(), P = new V(), S = new V(), H = new V();
     if (!this.bottomOf(this.data.bag, A) || !this.bottomOf(this.data.pca, P)) return;
+    // 인퓨전펌프: 위쪽 관 끝 = 들어가는 곳, 아래쪽 관 끝 = 나오는 곳 (모델 기준 좌표)
+    const pump = this.data.pump; if (!pump.getObject3D('mesh')) return;
+    pump.object3D.updateMatrixWorld(true);
+    const PIN = pump.object3D.localToWorld(new V(0.238, 0.95, -0.088)), POUT = pump.object3D.localToWorld(new V(0.241, -0.95, 0.078));
     const pt = this.data.patient.getObject3D('mesh'); if (!pt) return;
     const fore = this.bone(pt,'RightForeArm'), hand = this.bone(pt,'RightHand'); if (!fore || !hand) return;
     fore.getWorldPosition(S); hand.getWorldPosition(H); S.lerp(H, 0.7);          // 주입 부위
-    const key = [A,P,S].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
+    const key = [A,P,S,PIN,POUT].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
     if (key === this.last) return; this.last = key;
     // 3-way 위치: 주입 부위에서 수액백 쪽으로 약 20cm, 침대 위 높이
-    const dir = new V(A.x - S.x, 0, A.z - S.z).normalize();
+    const dir = new V(POUT.x - S.x, 0, POUT.z - S.z).normalize();
     const W = S.clone().addScaledVector(dir, 0.2); W.y = S.y + 0.01;
     const tw = this.data.threeway.object3D;
     tw.position.copy(W); tw.rotation.set(0, Math.atan2(-dir.z, dir.x), 0); tw.updateMatrixWorld(true);
     const inPort = tw.localToWorld(new V(0.0275,0,0)), outPort = tw.localToWorld(new V(-0.0275,0,0)),
           sidePort = tw.localToWorld(new V(0,0,0.028));
     const sag = (a, b, d) => { const m = a.clone().lerp(b, 0.5); m.y = Math.min(a.y, b.y) - d; return m; };
-    this.tube('main', [A, sag(A, inPort, 0.15), inPort]);            // 수액백 → 3-way
+    this.tube('bag2pump', [A, sag(A, PIN, 0.06), PIN]);              // 수액백 → 인퓨전펌프
+    this.tube('main', [POUT, sag(POUT, inPort, 0.15), inPort]);      // 인퓨전펌프 → 3-way
     this.tube('pca',  [P, sag(P, sidePort, 0.2), sidePort]);         // PCA → 3-way 옆 포트
     this.tube('site', [outPort, outPort.clone().lerp(S, 0.5).setY(W.y + 0.01), S]); // 3-way → 오른팔
+  }
+});
+/* 인퓨전펌프 화면: 주입 속도 표시. 클릭하면 처방 속도로 교정 (E4) */
+AFRAME.registerComponent('pump-screen', {
+  schema: { rate: {default: 20}, order: {default: 80}, fluid: {default: 'Plasma 1L'} },
+  init: function () {
+    this.cv = document.createElement('canvas'); this.cv.width = 512; this.cv.height = 384;
+    this.tex = new THREE.CanvasTexture(this.cv);
+    this.mat = new THREE.MeshBasicMaterial({ map: this.tex, side: THREE.DoubleSide });
+    this.el.addEventListener('click', () => {
+      if (this.data.rate !== this.data.order) {
+        const was = this.data.rate;
+        this.el.setAttribute('pump-screen', 'rate', this.data.order);
+        showMsg('✔ 오류 발견 · 교정 (E4)<br>주입 속도 ' + was + ' mL/hr → 처방 ' + this.data.order + ' mL/hr로 교정, 5 Rights 재확인');
+      } else showMsg('인퓨전펌프: ' + this.data.order + ' mL/hr로 주입 중 (처방과 일치).');
+    });
+  },
+  update: function () {   // 화면 그리기
+    const c = this.cv.getContext('2d');
+    c.fillStyle = '#0b1a12'; c.fillRect(0, 0, 512, 384);
+    c.fillStyle = '#7CFFB2';
+    c.font = 'bold 44px sans-serif'; c.fillText(this.data.fluid, 28, 70);
+    c.font = 'bold 130px sans-serif'; const num = String(this.data.rate); c.fillText(num, 28, 230);
+    const w = c.measureText(num).width;
+    c.font = 'bold 50px sans-serif'; c.fillText('mL/hr', 28 + w + 16, 230);
+    c.font = '36px sans-serif'; c.fillText('▶ RUNNING', 28, 330);
+    this.tex.needsUpdate = true;
+  },
+  tick: function () {     // 판(plane)에 화면 그림을 입힘
+    const mesh = this.el.getObject3D('mesh');
+    if (mesh && mesh.material !== this.mat) mesh.material = this.mat;
   }
 });
 function showMsg(html){
@@ -122,6 +158,7 @@ function showMsg(html){
       <option value="ivpole">수액폴대</option>
       <option value="ivbag">수액백</option>
       <option value="pca">PCA</option>
+      <option value="pump">인퓨전펌프</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
   <label>앞·뒤 <span class="v" id="vz"></span><input type="range" id="pz" min="-4" max="-1" step="0.01"></label>
@@ -167,12 +204,19 @@ function showMsg(html){
   <!-- PCA (pca.glb, 탄력식 통증조절기) — 수액백 바로 옆, 같은 폴대에 걸어서 보는 사람 쪽에서 잘 보이게 -->
   <a-entity id="pca" gltf-model="url(pca.glb)" scale="0.24 0.24 0.24" position="-0.45 1.62 -2.84" rotation="0 0 0"></a-entity>
 
+  <!-- 인퓨전펌프 (infusion_pump.glb) — 수액폴대에 클램프로 고정, 화면이 보는 사람 쪽.
+       화면: 20 mL/hr (처방 80 mL/hr → E4 오류). 화면을 클릭하면 80으로 교정 -->
+  <a-entity id="pump" gltf-model="url(infusion_pump.glb)" scale="0.2 0.2 0.2" position="-0.8 0.95 -3.19" rotation="0 90 0">
+    <a-plane class="clickable" pump-screen="rate: 20; order: 80; fluid: Plasma 1L"
+             width="0.36" height="0.27" position="0.235 0.43 0.356"></a-plane>
+  </a-entity>
+
   <!-- 3-way (클릭 가능) -->
   <a-entity id="threeway" class="clickable"></a-entity>
 
   <!-- 수액 세트: 수액백 + PCA 라인이 3-way에서 합쳐져 환자 오른팔로 주입.
        pcaClosed: true = 3-way 손잡이가 PCA 쪽 → PCA 차단 (E5 오류) / false = 정상 -->
-  <a-entity iv-set="bag: #ivbag; pca: #pca; patient: #patient; threeway: #threeway; pcaClosed: true"></a-entity>
+  <a-entity iv-set="bag: #ivbag; pca: #pca; patient: #patient; threeway: #threeway; pump: #pump; pcaClosed: true"></a-entity>
 
   <!-- 보는 사람: 침대 옆에 서서 환자를 바라봄 -->
   <a-entity laser-controls="hand: right" raycaster="objects: .clickable"></a-entity>
