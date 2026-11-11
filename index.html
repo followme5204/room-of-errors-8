@@ -128,6 +128,30 @@ AFRAME.registerComponent('marble-floor', {
   }
 });
 
+/* 침대 난간: 환자 기준 오른쪽(수액폴대 쪽) 난간을 내림.
+   rightDown: true = 내려감 / false = 올라감 (원래 모델 상태) */
+AFRAME.registerComponent('bed-rails', {
+  schema: { rightDown: {default: true} },
+  init: function () {
+    this.el.addEventListener('model-loaded', () => { this.ready = true; this.update(); });
+  },
+  update: function () {
+    if (!this.ready) return;
+    this.el.getObject3D('mesh').traverse(o => {
+      if (!o.isMesh) return;
+      const pos = o.geometry.attributes.position;
+      if (!this.orig) this.orig = pos.array.slice();
+      for (let i = 0; i < pos.count; i++) {
+        const x = this.orig[i*3], y = this.orig[i*3+1], z = this.orig[i*3+2];
+        // 모델 기준 -z 쪽 = 환자 오른쪽. 매트리스보다 위에 있는 난간 부분만 아래로 0.22 이동
+        const isRightRail = z < -0.25 && Math.abs(x) < 0.8 && y > 0.18;
+        pos.array[i*3+1] = (this.data.rightDown && isRightRail) ? y - 0.22 : y;
+      }
+      pos.needsUpdate = true; o.geometry.computeBoundingBox(); o.geometry.computeBoundingSphere();
+    });
+  }
+});
+
 /* 고리에 걸기: 모델이 불러와지면 맨 윗부분 가운데가 지정한 고리 위치에 오도록 자리를 잡음 */
 AFRAME.registerComponent('hang-on', {
   schema: { type: 'vec3' },   // 고리 위치 (x y z)
@@ -320,8 +344,9 @@ function showMsg(html){
   <!-- 페이퍼 타월 디스펜서(paper_towel.glb): 세면대 바로 위 벽 · 타월 나오는 곳 높이 약 1.25m -->
   <a-entity id="towel" gltf-model="url(paper_towel.glb)" scale="0.19 0.19 0.19" position="3.144 1.43 -1.0" rotation="0 -90 0"></a-entity>
 
-  <!-- 침대 (bed.glb): 전동 병원침대, 길이 약 2.1m · 머리 쪽이 벽 · 매트리스 윗면 높이 약 0.59m -->
-  <a-entity id="bed" gltf-model="url(bed.glb)" scale="1.104 1.104 1.104" position="0 0.411 -2.45" rotation="0 90 0"></a-entity>
+  <!-- 침대 (bed.glb): 전동 병원침대, 길이 약 2.1m · 머리 쪽이 벽 · 매트리스 윗면 높이 약 0.59m
+       bed-rails rightDown: true = 환자 오른쪽 난간 내려감 / false = 올라감 -->
+  <a-entity id="bed" gltf-model="url(bed.glb)" bed-rails="rightDown: true" scale="1.104 1.104 1.104" position="0 0.411 -2.45" rotation="0 90 0"></a-entity>
   <!-- 베개 -->
   <a-box width="0.6" height="0.1" depth="0.35" color="#f4f6fb" position="0 0.643 -3.19"></a-box>
 
