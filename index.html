@@ -21,7 +21,8 @@
 </style>
 <script>
 /* 환자: 모델에 들어 있는 동작(누운 자세)으로 멈춘 뒤, 침대 매트리스 위에 자동으로 눕힘 */
-const BED = { x: 0, z: -2.5, top: 0.62 };   // 침대 가운데와 매트리스 윗면 높이
+const BED = { x: 0, z: -2.5, top: 0.62 };      // 침대 가운데와 매트리스 윗면 높이
+const PILLOW = { z: -3.22, top: 0.72 };        // 베개 위치와 윗면 높이
 AFRAME.registerComponent('pose-clip', {
   schema: { time: {type: 'number', default: 11.4} },   // 몇 초 지점의 자세로 멈출지
   init: function () {
@@ -45,14 +46,39 @@ AFRAME.registerComponent('pose-clip', {
     this.model.traverse(o => { if (o.isBone) box.expandByPoint(o.getWorldPosition(v)); });
     return box;
   },
+  bonePos: function (n) {
+    const o = this.model.getObjectByName('mixamorig' + n) || this.model.getObjectByName('mixamorig:' + n);
+    return o ? o.getWorldPosition(new THREE.Vector3()) : null;
+  },
   snapToBed: function () {
+    const m = this.model, upd = () => this.el.object3D.updateMatrixWorld(true);
+    m.rotation.set(0, 0, 0); upd();
     let box = this.boneBox();
-    // 동작이 적용되지 않아 서 있는 자세라면 → 등을 대고 눕힘 (머리는 베개 쪽)
-    if (box.max.y - box.min.y > 1.0) { this.model.rotation.x = -Math.PI / 2; box = this.boneBox(); }
-    const pos = this.el.object3D.position, c = box.getCenter(new THREE.Vector3());
-    pos.x += BED.x - c.x;
-    pos.z += BED.z - c.z;
-    pos.y += (BED.top + 0.1) - box.min.y;      // 관절보다 몸 두께(약 10cm)만큼 아래가 매트리스
+    if (box.max.y - box.min.y > 1.0) {
+      // 동작이 적용되지 않아 서 있는 자세라면 → 등을 대고 눕힘
+      m.rotation.x = -Math.PI / 2; upd();
+    } else {
+      // ① 몸 방향: 발 → 머리 방향이 베개(-z) 쪽을 향하도록 돌림
+      const feetMid = () => this.bonePos('LeftFoot').add(this.bonePos('RightFoot')).multiplyScalar(0.5);
+      let head = this.bonePos('Head'), feet = feetMid();
+      m.rotation.y = Math.PI - Math.atan2(head.x - feet.x, head.z - feet.z); upd();
+      // ② 기울기: 의자에 기댄 자세를 침대에 맞게 눕힘 (머리가 발보다 약 10cm 높게 = 베개 벤 정도)
+      let best = 0, bestErr = 1e9;
+      for (let deg = -45; deg <= 15; deg++) {
+        m.rotation.x = deg * Math.PI / 180; upd();
+        const err = Math.abs((this.bonePos('Head').y - feetMid().y) - 0.10);
+        if (err < bestErr) { bestErr = err; best = m.rotation.x; }
+      }
+      m.rotation.x = best; upd();
+    }
+    // ③ 위치: 머리를 베개 위에, 몸은 매트리스 위에
+    box = this.boneBox();
+    const head = this.bonePos('Head') || box.getCenter(new THREE.Vector3());
+    const p = this.el.object3D.position;
+    const dy = Math.max(PILLOW.top + 0.09 - head.y,        // 머리 중심이 베개 윗면보다 약 9cm 위
+                        BED.top + 0.08 - box.min.y);         // 몸 관절이 매트리스보다 8cm 이상 위
+    const x = p.x + BED.x - head.x, z = p.z + PILLOW.z - head.z, y = p.y + dy;
+    this.el.setAttribute('position', {x: +x.toFixed(2), y: +y.toFixed(2), z: +z.toFixed(2)});
     if (window.onPatientPlaced) window.onPatientPlaced();
   }
 });
