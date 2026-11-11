@@ -364,7 +364,7 @@ function showMsg(html){
 <div id="toast"></div>
 <div id="views" style="position:fixed;top:48px;right:8px;z-index:11;display:flex;flex-direction:column;gap:6px">
   <button onclick="setView(-2.2,-2.0,-52)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">폴대 쪽에서 보기</button>
-  <button onclick="setView(1.7,-2.5,90)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">침대 반대편에서 보기</button>
+  <button onclick="setView(2.2,-1.2,57)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">침대 반대편에서 보기</button>
   <button onclick="setView(1.3,-0.4,-90)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">출입문·손씻기 구역 보기</button>
 </div>
 <button id="toggle">조절창 숨기기</button>
@@ -408,6 +408,9 @@ function showMsg(html){
   <a-plane width="8" height="3" color="#ffffff" position="0 1.5 -4.2"></a-plane>
   <a-plane width="8" height="3" color="#ffffff" position="-3.2 1.5 -2" rotation="0 90 0"></a-plane>
   <a-plane width="8" height="3" color="#ffffff" position="3.2 1.5 -2" rotation="0 -90 0"></a-plane>
+  <!-- 앞쪽 벽(침대 발치 너머)과 천장: 방을 닫아서 벽 밖 빈 공간이 보이지 않게 -->
+  <a-plane width="6.4" height="3" color="#ffffff" position="0 1.5 1.6" rotation="0 180 0"></a-plane>
+  <a-plane width="6.4" height="5.8" color="#f7f8f9" position="0 3 -1.3" rotation="90 0 0"></a-plane>
   <a-plane width="1.4" height="0.9" color="#a9d3f0" position="1.4 1.7 -4.18"></a-plane>
 
   <!-- 출입문: 오른쪽 벽(침대 발치 쪽), 폭 0.9m · 높이 2.1m — 문틀·손잡이·창·하단 보호판 -->
