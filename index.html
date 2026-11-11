@@ -21,8 +21,8 @@
 </style>
 <script>
 /* 환자: 모델에 들어 있는 동작(누운 자세)으로 멈춘 뒤, 침대 매트리스 위에 자동으로 눕힘 */
-const BED = { x: 0, z: -2.5, top: 0.62 };      // 침대 가운데와 매트리스 윗면 높이
-const PILLOW = { z: -3.22, top: 0.72 };        // 베개 위치와 윗면 높이
+const BED = { x: 0, z: -2.45, top: 0.593 };      // 침대 가운데와 매트리스 윗면 높이
+const PILLOW = { z: -3.19, top: 0.693 };        // 베개 위치와 윗면 높이
 AFRAME.registerComponent('pose-clip', {
   schema: { time: {type: 'number', default: 11.4} },   // 몇 초 지점의 자세로 멈출지
   init: function () {
@@ -320,11 +320,10 @@ function showMsg(html){
   <!-- 페이퍼 타월 디스펜서(paper_towel.glb): 세면대 바로 위 벽 · 타월 나오는 곳 높이 약 1.25m -->
   <a-entity id="towel" gltf-model="url(paper_towel.glb)" scale="0.19 0.19 0.19" position="3.144 1.43 -1.0" rotation="0 -90 0"></a-entity>
 
-  <!-- 침대 (머리 쪽이 벽, 길이 2m · 매트리스 윗면 높이 약 0.6m) -->
-  <a-box width="1.0" height="0.4" depth="2.0" color="#b8bec4" position="0 0.3 -2.5"></a-box>
-  <a-box width="0.95" height="0.12" depth="1.95" color="#ffffff" position="0 0.56 -2.5"></a-box>
-  <a-box width="0.6" height="0.1" depth="0.35" color="#f4f6fb" position="0 0.67 -3.25"></a-box>
-  <a-box width="1.0" height="0.5" depth="0.05" color="#9aa3ab" position="0 0.75 -3.52"></a-box>
+  <!-- 침대 (bed.glb): 전동 병원침대, 길이 약 2.1m · 머리 쪽이 벽 · 매트리스 윗면 높이 약 0.59m -->
+  <a-entity id="bed" gltf-model="url(bed.glb)" scale="1.104 1.104 1.104" position="0 0.411 -2.45" rotation="0 90 0"></a-entity>
+  <!-- 베개 -->
+  <a-box width="0.6" height="0.1" depth="0.35" color="#f4f6fb" position="0 0.643 -3.19"></a-box>
 
   <!-- 환자 (patient.glb) -->
   <a-entity id="patient" gltf-model="url(patient.glb)" pose-clip="time: 11.4"
