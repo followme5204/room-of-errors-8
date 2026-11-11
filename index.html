@@ -51,80 +51,50 @@ AFRAME.registerComponent('pose-clip', {
     return o ? o.getWorldPosition(new THREE.Vector3()) : null;
   },
   snapToBed: function () {
-    const m = this.model, upd = () => this.el.object3D.updateMatrixWorld(true);
+    const m = this.model, upd = () => this.el.object3D.updateMatrixWorld(true), B = n => this.bonePos(n);
     m.rotation.set(0, 0, 0); upd();
     let box = this.boneBox();
     if (box.max.y - box.min.y > 1.0) {
-      // 동작이 적용되지 않아 서 있는 자세라면 → 등을 대고 눕힘
-      m.rotation.x = -Math.PI / 2; upd();
+      m.rotation.x = -Math.PI / 2; upd();     // 동작이 적용되지 않아 서 있는 자세라면 → 등을 대고 눕힘
     } else {
-      // ① 몸 방향: 발 → 머리 방향이 베개(-z) 쪽을 향하도록 돌림
-      const feetMid = () => this.bonePos('LeftFoot').add(this.bonePos('RightFoot')).multiplyScalar(0.5);
-      let head = this.bonePos('Head'), feet = feetMid();
+      // ① 몸 방향: 발 → 머리 방향이 베개(-z) 쪽을 향하도록
+      const feetMid = () => B('LeftFoot').add(B('RightFoot')).multiplyScalar(0.5);
+      let head = B('Head'), feet = feetMid();
       m.rotation.y = Math.PI - Math.atan2(head.x - feet.x, head.z - feet.z); upd();
-      // ② 기울기: 의자에 기댄 자세를 침대에 맞게 눕힘 (머리가 발보다 약 10cm 높게 = 베개 벤 정도)
+      // ② 상체 기울기: 머리 관절이 엉덩이보다 약 8cm 높게 (베개 벤 높이)
       let best = 0, bestErr = 1e9;
-      for (let deg = -45; deg <= 15; deg++) {
+      for (let deg = -45; deg <= 15; deg += 0.5) {
         m.rotation.x = deg * Math.PI / 180; upd();
-        const err = Math.abs((this.bonePos('Head').y - feetMid().y) - 0.10);
+        const err = Math.abs((B('Head').y - B('Hips').y) - 0.08);
         if (err < bestErr) { bestErr = err; best = m.rotation.x; }
       }
       m.rotation.x = best; upd();
+      // ③ 다리: 허벅지 관절을 돌려 발이 매트리스에 닿도록 (엉덩이보다 약 4cm 낮게)
+      const X = new THREE.Vector3(1, 0, 0);
+      ['Left', 'Right'].forEach(side => {
+        const leg = this.model.getObjectByName('mixamorig' + side + 'UpLeg') || this.model.getObjectByName('mixamorig:' + side + 'UpLeg');
+        if (!leg) return;
+        const q0 = leg.quaternion.clone(); let bestA = 0, bestE = 1e9;
+        for (let deg = -40; deg <= 40; deg += 1) {
+          leg.quaternion.copy(q0); this.rotWorld(leg, X, deg * Math.PI / 180); upd();
+          const e = Math.abs(B(side + 'Foot').y - (B('Hips').y - 0.04));
+          if (e < bestE) { bestE = e; bestA = deg; }
+        }
+        leg.quaternion.copy(q0); this.rotWorld(leg, X, bestA * Math.PI / 180); upd();
+      });
     }
-    // ③ 위치: 머리를 베개 위에, 몸은 매트리스 위에
-    box = this.boneBox();
-    const head = this.bonePos('Head') || box.getCenter(new THREE.Vector3());
-    const p = this.el.object3D.position;
-    const dy = Math.max(PILLOW.top + 0.075 - head.y,       // 머리 관절이 베개 윗면보다 약 7.5cm 위 (머리가 베개에 살짝 묻힘)
-                        BED.top + 0.08 - box.min.y);         // 몸 관절이 매트리스보다 8cm 이상 위
-    const x = p.x + BED.x - head.x, z = p.z + PILLOW.z - head.z, y = p.y + dy;
-    this.el.setAttribute('position', {x: +x.toFixed(2), y: +y.toFixed(2), z: +z.toFixed(2)});
+    // ④ 위치: 엉덩이는 매트리스 위, 머리는 베개 위
+    const hips = B('Hips'), head = B('Head'), p = this.el.object3D.position;
+    const x = p.x + BED.x - (hips.x + head.x) / 2,
+          z = p.z + PILLOW.z - head.z,
+          y = p.y + (BED.top + 0.11) - hips.y;     // 엉덩이 관절이 매트리스보다 약 11cm 위 (몸 두께)
+    this.el.setAttribute('position', {x: +x.toFixed(3), y: +y.toFixed(3), z: +z.toFixed(3)});
     if (window.onPatientPlaced) window.onPatientPlaced();
-  }
-});
-
-/* 대리석 바닥: 흰·회색 바탕에 결(vein)을 그린 타일 그림을 만들어 바닥에 반복해서 깔기 */
-AFRAME.registerComponent('marble-floor', {
-  init: function () {
-    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const N = 1024, cv = document.createElement('canvas'); cv.width = cv.height = N;
-    const c = cv.getContext('2d');
-    // 바탕: 아주 옅은 회백색 얼룩
-    c.fillStyle = '#eceae6'; c.fillRect(0, 0, N, N);
-    for (let i = 0; i < 260; i++) {
-      const x = rnd() * N, y = rnd() * N, r = 30 + rnd() * 120;
-      const g = c.createRadialGradient(x, y, 0, x, y, r);
-      const t = 225 + Math.floor(rnd() * 25);
-      g.addColorStop(0, `rgba(${t},${t},${t - 3},0.35)`); g.addColorStop(1, 'rgba(236,234,230,0)');
-      c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
-    }
-    // 대리석 결: 구불구불한 회색 선
-    for (let i = 0; i < 26; i++) {
-      let x = rnd() * N, y = rnd() * N, a = rnd() * Math.PI * 2;
-      const dark = rnd() < 0.3, w = dark ? 1.6 + rnd() * 1.8 : 0.6 + rnd() * 1.2;
-      c.strokeStyle = dark ? 'rgba(120,120,125,0.55)' : 'rgba(150,150,155,0.35)';
-      c.lineWidth = w; c.beginPath(); c.moveTo(x, y);
-      const steps = 40 + Math.floor(rnd() * 80);
-      for (let k = 0; k < steps; k++) {
-        a += (rnd() - 0.5) * 0.6; x += Math.cos(a) * 9; y += Math.sin(a) * 9;
-        c.lineTo(x, y);
-        if (rnd() < 0.04) { c.stroke(); c.lineWidth = w * (0.4 + rnd() * 0.6); c.beginPath(); c.moveTo(x, y); }
-      }
-      c.stroke();
-    }
-    // 타일 줄눈 (그림 한 장 = 1.2m → 60cm 타일 2×2)
-    c.strokeStyle = 'rgba(170,168,162,0.9)'; c.lineWidth = 3;
-    [0, N / 2, N].forEach(v => { c.beginPath(); c.moveTo(v, 0); c.lineTo(v, N); c.stroke();
-                                 c.beginPath(); c.moveTo(0, v); c.lineTo(N, v); c.stroke(); });
-    const tex = new THREE.CanvasTexture(cv);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(8 / 1.2, 8 / 1.2);
-    tex.anisotropy = 8;
-    if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-    this.mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.25, metalness: 0.05 });
   },
-  tick: function () {   // 다른 설정이 바닥 재질을 덮어쓰지 않도록 대리석 재질을 유지
-    const mesh = this.el.getObject3D('mesh');
-    if (mesh && mesh.material !== this.mat) mesh.material = this.mat;
+  rotWorld: function (bone, axis, ang) {   // 관절을 세계 기준 축으로 돌림
+    const pq = new THREE.Quaternion(); bone.parent.getWorldQuaternion(pq);
+    const d = new THREE.Quaternion().setFromAxisAngle(axis, ang);
+    bone.quaternion.premultiply(pq.clone().invert().multiply(d).multiply(pq));
   }
 });
 
