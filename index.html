@@ -224,6 +224,8 @@ function showMsg(html){
       <option value="pump">인퓨전펌프</option>
       <option value="sink">세면대</option>
       <option value="sanitizer">손소독제</option>
+      <option value="soap">손세정제</option>
+      <option value="towel">페이퍼 타월</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
   <label>앞·뒤 <span class="v" id="vz"></span><input type="range" id="pz" min="-4" max="-1" step="0.01"></label>
@@ -267,7 +269,11 @@ function showMsg(html){
   <!-- 손씻기 구역: 세면대(sink.glb)를 오른쪽 벽에 붙임 — 문에서 약 0.7m 떨어져 문을 가리지 않음.
        세면대 윗면 높이 약 0.85m -->
   <a-entity id="sink" gltf-model="url(sink.glb)" scale="0.28 0.28 0.28" position="2.934 0.748 -1.0" rotation="0 -90 0"></a-entity>
-  <a-text value="HAND HYGIENE" align="center" color="#2f6fb3" width="2.2" position="3.18 1.75 -1.0" rotation="0 -90 0"></a-text>
+  <!-- 손세정제(hand_soap.glb): 세면대 윗면 뒤쪽 모서리, 수도꼭지 옆 · 라벨이 사용자 쪽 -->
+  <a-entity id="soap" gltf-model="url(hand_soap.glb)" scale="0.105 0.105 0.105" position="3.12 0.95 -1.09" rotation="0 -90 0"></a-entity>
+  <!-- 페이퍼 타월 디스펜서(paper_towel.glb): 세면대 바로 위 벽 · 타월 나오는 곳 높이 약 1.25m -->
+  <a-entity id="towel" gltf-model="url(paper_towel.glb)" scale="0.19 0.19 0.19" position="3.144 1.43 -1.0" rotation="0 -90 0"></a-entity>
+  <a-text value="HAND HYGIENE" align="center" color="#2f6fb3" width="2.2" position="3.18 1.88 -1.0" rotation="0 -90 0"></a-text>
 
   <!-- 침대 (머리 쪽이 벽, 길이 2m · 매트리스 윗면 높이 약 0.6m) -->
   <a-box width="1.0" height="0.4" depth="2.0" color="#b8bec4" position="0 0.3 -2.5"></a-box>
