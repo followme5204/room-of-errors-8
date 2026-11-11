@@ -16,6 +16,8 @@
   #code{margin-top:8px;background:#f2f4f6;padding:6px;border-radius:6px;font-size:12px;word-break:break-all}
   #toggle{position:fixed;top:8px;right:8px;z-index:11;padding:8px 12px;border:0;border-radius:8px;background:#2f6fb3;color:#fff;font-size:14px}
   #msg{margin-top:6px;color:#b33}
+  #toast{display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:12;background:rgba(255,255,255,.96);
+    padding:10px 14px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.25);font-size:15px;max-width:90%}
 </style>
 <script>
 /* 환자 모델에 들어 있는 동작(누운 자세)을 원하는 시점에 멈춰 세우는 기능 */
@@ -40,27 +42,35 @@ AFRAME.registerComponent('pose-clip', {
 });
 
 /* 수액 세트: 수액백 라인 + PCA 라인이 3-way에서 합쳐져 환자 오른팔(아래팔~손등)로 들어감.
-   환자·수액백·PCA를 움직이면 라인과 3-way가 함께 따라감 */
+   3-way 손잡이가 가리키는 포트가 막힌 쪽(OFF).
+   pcaClosed: true  → 손잡이가 PCA 포트 쪽 = PCA 차단 (E5 오류)
+              false → 손잡이가 빈 쪽 = 세 방향 모두 열림 (정상)
+   3-way를 클릭하면 손잡이를 돌려 교정함 */
 AFRAME.registerComponent('iv-set', {
   schema: { bag: {type:'selector'}, pca: {type:'selector'}, patient: {type:'selector'},
-            clampClosed: {default: true} },     // E5: PCA line clamp 잠김
+            threeway: {type:'selector'}, pcaClosed: {default: true} },
   init: function () {
     const T = THREE;
     this.tubeMat = new T.MeshStandardMaterial({ color:'#f2f6f8', roughness:0.4, transparent:true, opacity:0.85 });
     this.tubes = {}; this.last = ''; this.box = new T.Box3();
-    // 3-way: 흰 몸통 + 포트 3개 + 파란 손잡이
+    // 3-way 모양: 흰 몸통 + 주 라인 포트 2개(좌우) + PCA 옆 포트 1개 + 파란 손잡이
     const g = new T.Group(), white = new T.MeshStandardMaterial({color:'#ffffff', roughness:0.3}),
           blue = new T.MeshStandardMaterial({color:'#2f6fd6', roughness:0.4});
-    const body = new T.Mesh(new T.CylinderGeometry(0.009,0.009,0.016,16), white); g.add(body);
-    const port = (len, rotZ, rotX) => { const m = new T.Mesh(new T.CylinderGeometry(0.004,0.004,len,10), white);
-      m.rotation.set(rotX||0,0,rotZ||0); return m; };
-    const p1 = port(0.05, Math.PI/2); g.add(p1);                  // 좌우로 관통 (주 라인)
-    const p2 = port(0.025, 0, Math.PI/2); p2.position.z = 0.014; g.add(p2); // 옆 포트 (PCA)
-    const h = new T.Mesh(new T.BoxGeometry(0.035,0.004,0.008), blue); h.position.y = 0.011; g.add(h); // 손잡이
-    this.threeway = g; this.el.sceneEl.object3D.add(g);
-    // PCA 라인 clamp (E5)
-    this.clamp = new T.Mesh(new T.BoxGeometry(0.018,0.03,0.012), new T.MeshStandardMaterial({color:'#e8e2d0'}));
-    this.el.sceneEl.object3D.add(this.clamp);
+    g.add(new T.Mesh(new T.CylinderGeometry(0.01,0.01,0.016,16), white));
+    const main = new T.Mesh(new T.CylinderGeometry(0.0045,0.0045,0.055,10), white); main.rotation.z = Math.PI/2; g.add(main);
+    const side = new T.Mesh(new T.CylinderGeometry(0.0045,0.0045,0.028,10), white); side.rotation.x = Math.PI/2; side.position.z = 0.014; g.add(side);
+    this.lever = new T.Mesh(new T.BoxGeometry(0.008,0.005,0.034), blue); this.lever.position.y = 0.011; g.add(this.lever);
+    // 클릭이 잘 되도록 보이지 않는 넓은 상자
+    const hit = new T.Mesh(new T.BoxGeometry(0.09,0.05,0.07), new T.MeshBasicMaterial({visible:false})); g.add(hit);
+    this.data.threeway.setObject3D('mesh', g);
+    this.data.threeway.addEventListener('click', () => {
+      if (!this.data.pcaClosed) { showMsg('3-way: 세 방향 모두 열려 있어요 (정상).'); return; }
+      this.el.setAttribute('iv-set', 'pcaClosed', false);
+      showMsg('✔ 오류 발견 · 교정 (E5)<br>3-way가 PCA 쪽으로 잠겨 있었어요 → 손잡이를 돌려 PCA 라인 개방, 통증(NRS) 재사정');
+    });
+  },
+  update: function () {   // 손잡이 방향: PCA 포트 쪽(+z) = PCA 차단 / 반대쪽(-z) = 모두 열림
+    if (this.lever) this.lever.position.z = this.data.pcaClosed ? 0.016 : -0.016;
   },
   bottomOf: function (el, out) {
     const o = el.getObject3D('mesh'); if (!o) return false;
@@ -68,8 +78,8 @@ AFRAME.registerComponent('iv-set', {
     out.set((this.box.min.x+this.box.max.x)/2, this.box.min.y, (this.box.min.z+this.box.max.z)/2); return true;
   },
   bone: function (root, n) { return root.getObjectByName('mixamorig'+n) || root.getObjectByName('mixamorig:'+n); },
-  tube: function (key, pts, r) {
-    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, r || 0.004, 6, false);
+  tube: function (key, pts) {
+    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, 0.004, 6, false);
     if (this.tubes[key]) { this.tubes[key].geometry.dispose(); this.tubes[key].geometry = geo; }
     else { this.tubes[key] = new THREE.Mesh(geo, this.tubeMat); this.el.sceneEl.object3D.add(this.tubes[key]); }
   },
@@ -81,25 +91,28 @@ AFRAME.registerComponent('iv-set', {
     fore.getWorldPosition(S); hand.getWorldPosition(H); S.lerp(H, 0.7);          // 주입 부위
     const key = [A,P,S].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
     if (key === this.last) return; this.last = key;
-    // 3-way: 주입 부위에서 수액백 쪽으로 약 20cm, 침대 위 높이
+    // 3-way 위치: 주입 부위에서 수액백 쪽으로 약 20cm, 침대 위 높이
     const dir = new V(A.x - S.x, 0, A.z - S.z).normalize();
     const W = S.clone().addScaledVector(dir, 0.2); W.y = S.y + 0.01;
-    this.threeway.position.copy(W);
-    this.threeway.rotation.y = Math.atan2(-dir.z, dir.x);
+    const tw = this.data.threeway.object3D;
+    tw.position.copy(W); tw.rotation.set(0, Math.atan2(-dir.z, dir.x), 0); tw.updateMatrixWorld(true);
+    const inPort = tw.localToWorld(new V(0.0275,0,0)), outPort = tw.localToWorld(new V(-0.0275,0,0)),
+          sidePort = tw.localToWorld(new V(0,0,0.028));
     const sag = (a, b, d) => { const m = a.clone().lerp(b, 0.5); m.y = Math.min(a.y, b.y) - d; return m; };
-    this.tube('main', [A, sag(A, W, 0.15), W]);                 // 수액백 → 3-way
-    this.tube('pca',  [P, sag(P, W, 0.2), W]);                  // PCA → 3-way 옆 포트
-    this.tube('site', [W, W.clone().lerp(S, 0.5).setY(W.y + 0.01), S]); // 3-way → 오른팔
-    // clamp: PCA 라인 위쪽 1/4 지점
-    this.clamp.position.copy(P.clone().lerp(sag(P, W, 0.2), 0.5));
-    this.clamp.visible = true;
-    this.clamp.material.color.set(this.data.clampClosed ? '#d9534f' : '#e8e2d0');
+    this.tube('main', [A, sag(A, inPort, 0.15), inPort]);            // 수액백 → 3-way
+    this.tube('pca',  [P, sag(P, sidePort, 0.2), sidePort]);         // PCA → 3-way 옆 포트
+    this.tube('site', [outPort, outPort.clone().lerp(S, 0.5).setY(W.y + 0.01), S]); // 3-way → 오른팔
   }
 });
+function showMsg(html){
+  const m = document.getElementById('toast'); m.innerHTML = html; m.style.display = 'block';
+  clearTimeout(showMsg.t); showMsg.t = setTimeout(() => m.style.display = 'none', 6000);
+}
 </script>
 </head>
 <body>
 
+<div id="toast"></div>
 <button id="toggle">조절창 숨기기</button>
 <div id="panel">
   <h3>위치 조절</h3>
@@ -120,7 +133,7 @@ AFRAME.registerComponent('iv-set', {
 </div>
 
 <!-- dracoDecoderPath: 환자 모델의 압축(Draco)을 푸는 설정. 이 줄이 없으면 환자가 안 보여요 -->
-<a-scene renderer="antialias:true"
+<a-scene renderer="antialias:true" cursor="rayOrigin: mouse" raycaster="objects: .clickable"
          gltf-model="dracoDecoderPath: https://www.gstatic.com/draco/versioned/decoders/1.5.6/"
          background="color:#dfe6ec">
 
@@ -154,11 +167,15 @@ AFRAME.registerComponent('iv-set', {
   <!-- PCA (pca.glb, 탄력식 통증조절기) — 수액폴대의 다른 고리에 걸림 -->
   <a-entity id="pca" gltf-model="url(pca.glb)" scale="0.24 0.24 0.24" position="-0.8 1.62 -2.75" rotation="0 0 0"></a-entity>
 
+  <!-- 3-way (클릭 가능) -->
+  <a-entity id="threeway" class="clickable"></a-entity>
+
   <!-- 수액 세트: 수액백 + PCA 라인이 3-way에서 합쳐져 환자 오른팔로 주입.
-       clampClosed: true = PCA clamp 잠김(E5 오류, 빨간색) / false = 정상 -->
-  <a-entity iv-set="bag: #ivbag; pca: #pca; patient: #patient; clampClosed: true"></a-entity>
+       pcaClosed: true = 3-way 손잡이가 PCA 쪽 → PCA 차단 (E5 오류) / false = 정상 -->
+  <a-entity iv-set="bag: #ivbag; pca: #pca; patient: #patient; threeway: #threeway; pcaClosed: true"></a-entity>
 
   <!-- 보는 사람: 침대 옆에 서서 환자를 바라봄 -->
+  <a-entity laser-controls="hand: right" raycaster="objects: .clickable"></a-entity>
   <a-entity id="rig" position="1.7 0 -2.5" rotation="0 90 0">
     <a-camera position="0 1.55 0" look-controls wasd-controls="acceleration:20"></a-camera>
   </a-entity>
