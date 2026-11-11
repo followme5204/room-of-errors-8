@@ -186,11 +186,11 @@ AFRAME.registerComponent('pump-screen', {
     const c = this.cv.getContext('2d');
     c.fillStyle = '#0b1a12'; c.fillRect(0, 0, 512, 384);
     c.fillStyle = '#7CFFB2';
-    c.font = 'bold 44px sans-serif'; c.fillText(this.data.fluid, 28, 70);
-    c.font = 'bold 130px sans-serif'; const num = String(this.data.rate); c.fillText(num, 28, 230);
+    c.font = 'bold 40px sans-serif'; c.fillText(this.data.fluid, 22, 52);
+    c.font = 'bold 230px sans-serif'; const num = String(this.data.rate); c.fillText(num, 16, 268);   // 숫자 크게
     const w = c.measureText(num).width;
-    c.font = 'bold 50px sans-serif'; c.fillText('mL/hr', 28 + w + 16, 230);
-    c.font = '36px sans-serif'; c.fillText('▶ RUNNING', 28, 330);
+    c.font = 'bold 58px sans-serif'; c.fillText('mL/hr', 16 + w + 10, 268);
+    c.font = 'bold 34px sans-serif'; c.fillText('▶ RUNNING', 22, 352);
     this.tex.needsUpdate = true;
   },
   tick: function () {     // 판(plane)에 화면 그림을 입힘
