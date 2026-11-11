@@ -83,6 +83,51 @@ AFRAME.registerComponent('pose-clip', {
   }
 });
 
+/* 대리석 바닥: 흰·회색 바탕에 결(vein)을 그린 타일 그림을 만들어 바닥에 반복해서 깔기 */
+AFRAME.registerComponent('marble-floor', {
+  init: function () {
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const N = 1024, cv = document.createElement('canvas'); cv.width = cv.height = N;
+    const c = cv.getContext('2d');
+    // 바탕: 아주 옅은 회백색 얼룩
+    c.fillStyle = '#eceae6'; c.fillRect(0, 0, N, N);
+    for (let i = 0; i < 260; i++) {
+      const x = rnd() * N, y = rnd() * N, r = 30 + rnd() * 120;
+      const g = c.createRadialGradient(x, y, 0, x, y, r);
+      const t = 225 + Math.floor(rnd() * 25);
+      g.addColorStop(0, `rgba(${t},${t},${t - 3},0.35)`); g.addColorStop(1, 'rgba(236,234,230,0)');
+      c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    // 대리석 결: 구불구불한 회색 선
+    for (let i = 0; i < 26; i++) {
+      let x = rnd() * N, y = rnd() * N, a = rnd() * Math.PI * 2;
+      const dark = rnd() < 0.3, w = dark ? 1.6 + rnd() * 1.8 : 0.6 + rnd() * 1.2;
+      c.strokeStyle = dark ? 'rgba(120,120,125,0.55)' : 'rgba(150,150,155,0.35)';
+      c.lineWidth = w; c.beginPath(); c.moveTo(x, y);
+      const steps = 40 + Math.floor(rnd() * 80);
+      for (let k = 0; k < steps; k++) {
+        a += (rnd() - 0.5) * 0.6; x += Math.cos(a) * 9; y += Math.sin(a) * 9;
+        c.lineTo(x, y);
+        if (rnd() < 0.04) { c.stroke(); c.lineWidth = w * (0.4 + rnd() * 0.6); c.beginPath(); c.moveTo(x, y); }
+      }
+      c.stroke();
+    }
+    // 타일 줄눈 (그림 한 장 = 1.2m → 60cm 타일 2×2)
+    c.strokeStyle = 'rgba(170,168,162,0.9)'; c.lineWidth = 3;
+    [0, N / 2, N].forEach(v => { c.beginPath(); c.moveTo(v, 0); c.lineTo(v, N); c.stroke();
+                                 c.beginPath(); c.moveTo(0, v); c.lineTo(N, v); c.stroke(); });
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(8 / 1.2, 8 / 1.2);
+    tex.anisotropy = 8;
+    if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+    const apply = () => {
+      const mesh = this.el.getObject3D('mesh'); if (!mesh) return;
+      mesh.material = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.25, metalness: 0.05 });
+    };
+    if (this.el.getObject3D('mesh')) apply(); else this.el.addEventListener('object3dset', apply, {once: true});
+  }
+});
+
 /* 고리에 걸기: 모델이 불러와지면 맨 윗부분 가운데가 지정한 고리 위치에 오도록 자리를 잡음 */
 AFRAME.registerComponent('hang-on', {
   schema: { type: 'vec3' },   // 고리 위치 (x y z)
@@ -246,7 +291,8 @@ function showMsg(html){
   <a-entity light="type:directional; intensity:0.7" position="1 3 1"></a-entity>
 
   <!-- 병실: 바닥·벽·창문 -->
-  <a-plane rotation="-90 0 0" width="8" height="8" color="#c9c2b6" position="0 0 -2"></a-plane>
+  <!-- 바닥: 대리석 타일 (60cm 타일, 그림은 코드로 생성) -->
+  <a-plane rotation="-90 0 0" width="8" height="8" position="0 0 -2" marble-floor></a-plane>
   <a-plane width="8" height="3" color="#eef2f5" position="0 1.5 -4.2"></a-plane>
   <a-plane width="8" height="3" color="#e7edf1" position="-3.2 1.5 -2" rotation="0 90 0"></a-plane>
   <a-plane width="8" height="3" color="#e7edf1" position="3.2 1.5 -2" rotation="0 -90 0"></a-plane>
