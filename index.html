@@ -61,14 +61,31 @@ AFRAME.registerComponent('pose-clip', {
       const feetMid = () => B('LeftFoot').add(B('RightFoot')).multiplyScalar(0.5);
       let head = B('Head'), feet = feetMid();
       m.rotation.y = Math.PI - Math.atan2(head.x - feet.x, head.z - feet.z); upd();
-      // ② 상체 기울기: 머리 관절이 엉덩이보다 약 8cm 높게 (베개 벤 높이)
+      // ② 몸통 기울기: 어깨(목 아래)가 엉덩이와 거의 같은 높이 → 등이 매트리스에 평평하게
       let best = 0, bestErr = 1e9;
       for (let deg = -45; deg <= 15; deg += 0.5) {
         m.rotation.x = deg * Math.PI / 180; upd();
-        const err = Math.abs((B('Head').y - B('Hips').y) - 0.08);
+        const err = Math.abs((B('Neck').y - B('Hips').y) - 0.03);
         if (err < bestErr) { bestErr = err; best = m.rotation.x; }
       }
       m.rotation.x = best; upd();
+      // ②-1 목: 머리가 베개 높이에 오도록 (머리 관절이 엉덩이보다 약 8.5cm 위)
+      const X0 = new THREE.Vector3(1, 0, 0), bone = n => this.model.getObjectByName('mixamorig' + n) || this.model.getObjectByName('mixamorig:' + n);
+      const fit = (b, score) => {           // 관절 b를 -60~60도 돌려가며 score가 가장 작은 각도로 고정
+        if (!b) return; const q0 = b.quaternion.clone(); let bA = 0, bE = 1e9;
+        for (let deg = -60; deg <= 60; deg += 1) {
+          b.quaternion.copy(q0); this.rotWorld(b, X0, deg * Math.PI / 180); upd();
+          const e = score(); if (e < bE) { bE = e; bA = deg; }
+        }
+        b.quaternion.copy(q0); this.rotWorld(b, X0, bA * Math.PI / 180); upd();
+      };
+      fit(bone('Neck'), () => Math.abs((B('Head').y - B('Hips').y) - 0.085));
+      // ②-2 머리 각도: 정수리가 침대 머리 쪽(-z)을 향하고 약 15도만 들림 → 얼굴이 천장을 자연스럽게 봄 (턱 들림 방지)
+      fit(bone('Head'), () => {
+        const top = B('HeadTop_End'), h = B('Head'); if (!top) return 0;
+        const d = top.sub(h).normalize();
+        return Math.abs(d.y - 0.26) + (d.z > 0 ? 2 : 0);
+      });
       // ③ 다리: 허벅지 관절을 돌려 발이 매트리스에 닿도록 (엉덩이보다 약 4cm 낮게)
       const X = new THREE.Vector3(1, 0, 0);
       ['Left', 'Right'].forEach(side => {
@@ -200,7 +217,7 @@ AFRAME.registerComponent('bp-cuff', {
   schema: { patient: {type: 'selector'}, monitor: {type: 'selector'}, side: {default: 'left'} },
   init: function () {
     const T = THREE;
-    this.cuff = new T.Mesh(new T.CylinderGeometry(0.058, 0.058, 0.15, 24, 1, true),
+    this.cuff = new T.Mesh(new T.CylinderGeometry(0.074, 0.074, 0.13, 28, 1, true),
       new T.MeshStandardMaterial({ color: '#2b4f86', roughness: 0.85, side: T.DoubleSide }));
     const hit = new T.Mesh(new T.CylinderGeometry(0.09, 0.09, 0.2, 8), new T.MeshBasicMaterial({ visible: false }));
     this.cuff.add(hit);
@@ -227,7 +244,7 @@ AFRAME.registerComponent('bp-cuff', {
     const key = [a, b, port].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
     if (key === this.last) return; this.last = key;
     // 커프: 어깨~팔꿈치 사이 가운데에서 약간 어깨 쪽, 팔 방향으로 세움
-    const mid = a.clone().lerp(b, 0.45), dir = b.clone().sub(a).normalize();
+    const mid = a.clone().lerp(b, 0.6), dir = b.clone().sub(a).normalize();   // 소매 아래로 보이도록 팔꿈치 쪽으로
     this.el.object3D.position.copy(mid);
     this.el.object3D.quaternion.setFromUnitVectors(new V(0, 1, 0), dir);
     // 연결 호스: 커프 → 아래로 처졌다가 → 모니터 연결구
