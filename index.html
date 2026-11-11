@@ -22,7 +22,7 @@
 <script>
 /* 환자: 모델에 들어 있는 동작(누운 자세)으로 멈춘 뒤, 침대 매트리스 위에 자동으로 눕힘 */
 const BED = { x: 0, z: -2.45, top: 0.593 };      // 침대 가운데와 매트리스 윗면 높이
-const PILLOW = { z: -3.19, top: 0.693 };        // 베개 위치와 윗면 높이
+const PILLOW = { z: -3.17, top: 0.713 };        // 베개 위치와 윗면 높이
 AFRAME.registerComponent('pose-clip', {
   schema: { time: {type: 'number', default: 11.4} },   // 몇 초 지점의 자세로 멈출지
   init: function () {
@@ -75,7 +75,7 @@ AFRAME.registerComponent('pose-clip', {
     box = this.boneBox();
     const head = this.bonePos('Head') || box.getCenter(new THREE.Vector3());
     const p = this.el.object3D.position;
-    const dy = Math.max(PILLOW.top + 0.09 - head.y,        // 머리 중심이 베개 윗면보다 약 9cm 위
+    const dy = Math.max(PILLOW.top + 0.075 - head.y,       // 머리 관절이 베개 윗면보다 약 7.5cm 위 (머리가 베개에 살짝 묻힘)
                         BED.top + 0.08 - box.min.y);         // 몸 관절이 매트리스보다 8cm 이상 위
     const x = p.x + BED.x - head.x, z = p.z + PILLOW.z - head.z, y = p.y + dy;
     this.el.setAttribute('position', {x: +x.toFixed(2), y: +y.toFixed(2), z: +z.toFixed(2)});
@@ -128,10 +128,10 @@ AFRAME.registerComponent('marble-floor', {
   }
 });
 
-/* 침대 난간: 환자 기준 오른쪽(수액폴대 쪽) 난간을 내림.
+/* 침대 난간: 환자 기준 오른쪽(수액폴대 쪽) 난간은 내리고, 왼쪽 난간은 올라온 게 잘 보이게 높임.
    rightDown: true = 내려감 / false = 올라감 (원래 모델 상태) */
 AFRAME.registerComponent('bed-rails', {
-  schema: { rightDown: {default: true} },
+  schema: { rightDown: {default: true}, leftUp: {default: true} },
   init: function () {
     this.el.addEventListener('model-loaded', () => { this.ready = true; this.update(); });
   },
@@ -145,10 +145,34 @@ AFRAME.registerComponent('bed-rails', {
         const x = this.orig[i*3], y = this.orig[i*3+1], z = this.orig[i*3+2];
         // 모델 기준 -z 쪽 = 환자 오른쪽. 매트리스보다 위에 있는 난간 부분만 아래로 0.22 이동
         const isRightRail = z < -0.25 && Math.abs(x) < 0.8 && y > 0.18;
-        pos.array[i*3+1] = (this.data.rightDown && isRightRail) ? y - 0.22 : y;
+        const isLeftRail  = z >  0.25 && Math.abs(x) < 0.8 && y > 0.17;   // 모델 기준 +z 쪽 = 환자 왼쪽
+        let ny = y;
+        if (this.data.rightDown && isRightRail) ny = y - 0.22;        // 오른쪽: 내림
+        if (this.data.leftUp && isLeftRail) ny = y + 0.12;            // 왼쪽: 확실히 올라온 높이로 (매트리스 위 약 30cm)
+        pos.array[i*3+1] = ny;
       }
       pos.needsUpdate = true; o.geometry.computeBoundingBox(); o.geometry.computeBoundingSphere();
     });
+  }
+});
+
+/* 병원 베갯잇: 흰 바탕에 작은 CAU 글씨를 엇갈리게 반복 */
+AFRAME.registerComponent('pillowcase', {
+  init: function () {
+    const N = 512, cv = document.createElement('canvas'); cv.width = cv.height = N;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#fbfbfa'; c.fillRect(0, 0, N, N);
+    c.fillStyle = '#6f93b8'; c.font = 'bold 26px sans-serif'; c.textAlign = 'center';
+    for (let r = 0; r < 8; r++) for (let k = 0; k < 6; k++)
+      c.fillText('CAU', (k + (r % 2 ? 0.5 : 0)) * (N / 6) + 20, r * (N / 8) + 40);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(3, 1.5);
+    if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+    this.mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 });
+  },
+  tick: function () {
+    const mesh = this.el.getObject3D('mesh');
+    if (mesh && mesh.material !== this.mat) mesh.material = this.mat;
   }
 });
 
@@ -347,8 +371,8 @@ function showMsg(html){
   <!-- 침대 (bed.glb): 전동 병원침대, 길이 약 2.1m · 머리 쪽이 벽 · 매트리스 윗면 높이 약 0.59m
        bed-rails rightDown: true = 환자 오른쪽 난간 내려감 / false = 올라감 -->
   <a-entity id="bed" gltf-model="url(bed.glb)" bed-rails="rightDown: true" scale="1.104 1.104 1.104" position="0 0.411 -2.45" rotation="0 90 0"></a-entity>
-  <!-- 베개 -->
-  <a-box width="0.6" height="0.1" depth="0.35" color="#f4f6fb" position="0 0.643 -3.19"></a-box>
+  <!-- 베개: 볼록한 베개 + 흰 바탕에 작은 CAU 글씨가 반복된 병원 베갯잇 -->
+  <a-sphere radius="1" scale="0.32 0.065 0.2" position="0 0.648 -3.17" segments-width="36" segments-height="18" pillowcase></a-sphere>
 
   <!-- 환자 (patient.glb) -->
   <a-entity id="patient" gltf-model="url(patient.glb)" pose-clip="time: 11.4"
