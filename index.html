@@ -146,6 +146,98 @@ AFRAME.registerComponent('pillowcase', {
   }
 });
 
+/* 환자 모니터 화면: 활력징후 숫자와 파형을 그림 (숫자는 아래 vitals 값에서 바꿀 수 있음) */
+AFRAME.registerComponent('monitor-screen', {
+  schema: { hr: {default: 112}, sbp: {default: 98}, dbp: {default: 58}, spo2: {default: 96}, rr: {default: 22}, bt: {default: 36.8} },
+  init: function () {
+    this.cv = document.createElement('canvas'); this.cv.width = 640; this.cv.height = 432;
+    this.tex = new THREE.CanvasTexture(this.cv);
+    this.mat = new THREE.MeshBasicMaterial({ map: this.tex, side: THREE.DoubleSide });
+    this.t = 0;
+  },
+  wave: function (c, y0, color, kind, phase) {
+    c.strokeStyle = color; c.lineWidth = 3; c.beginPath();
+    for (let x = 0; x <= 400; x += 2) {
+      const u = ((x + phase) % 100) / 100; let y;
+      if (kind === 'ecg') y = u > 0.42 && u < 0.46 ? -38 : (u > 0.46 && u < 0.5 ? 14 : (u > 0.62 && u < 0.72 ? -8 * Math.sin((u - 0.62) * 31) : 0));
+      else y = -18 * Math.max(0, Math.sin(u * Math.PI * 2)) ;
+      x ? c.lineTo(14 + x, y0 + y) : c.moveTo(14 + x, y0 + y);
+    }
+    c.stroke();
+  },
+  draw: function () {
+    const c = this.cv.getContext('2d'), d = this.data, ph = this.t;
+    c.fillStyle = '#05080a'; c.fillRect(0, 0, 640, 432);
+    c.strokeStyle = '#1d2a30'; c.lineWidth = 2; c.strokeRect(4, 4, 632, 424);
+    this.wave(c, 90, '#39ff6a', 'ecg', ph); this.wave(c, 210, '#36d6ff', 'pleth', ph * 1.0);
+    c.font = 'bold 24px sans-serif';
+    c.fillStyle = '#39ff6a'; c.fillText('II', 16, 34); c.fillText('HR', 430, 34);
+    c.font = 'bold 92px sans-serif'; c.fillText(d.hr, 440, 118);
+    c.fillStyle = '#36d6ff'; c.font = 'bold 24px sans-serif'; c.fillText('Pleth', 16, 160); c.fillText('SpO2 %', 430, 160);
+    c.font = 'bold 80px sans-serif'; c.fillText(d.spo2, 450, 236);
+    c.fillStyle = '#f2f2f2'; c.font = 'bold 24px sans-serif'; c.fillText('NIBP mmHg', 16, 292);
+    const map = Math.round((d.sbp + 2 * d.dbp) / 3);
+    c.font = 'bold 70px sans-serif'; c.fillText(d.sbp + '/' + d.dbp, 16, 364);
+    c.font = 'bold 34px sans-serif'; c.fillText('(' + map + ')', 270, 364);
+    c.fillStyle = '#ffd84a'; c.font = 'bold 24px sans-serif'; c.fillText('RR', 430, 292);
+    c.font = 'bold 64px sans-serif'; c.fillText(d.rr, 440, 360);
+    c.fillStyle = '#ff9fd0'; c.font = 'bold 24px sans-serif'; c.fillText('Temp ' + d.bt + '°C', 16, 412);
+    this.tex.needsUpdate = true;
+  },
+  update: function () { this.draw(); },
+  tick: function (time, dt) {
+    const mesh = this.el.getObject3D('mesh');
+    if (mesh && mesh.material !== this.mat) mesh.material = this.mat;
+    this.t = (this.t + (dt || 16) * 0.12 * this.data.hr / 60) % 100;   // 심박수에 맞춰 파형이 흐름
+    this.acc = (this.acc || 0) + (dt || 16);
+    if (this.acc > 66) { this.acc = 0; this.draw(); }
+  }
+});
+
+/* BP 커프: 환자 위팔에 감긴 띠 + 모니터까지 이어진 선.
+   side: left = 왼팔 (Lt. arm save 처방 → E6 오류) / right = 오른팔. 커프를 클릭하면 오른팔로 옮김 */
+AFRAME.registerComponent('bp-cuff', {
+  schema: { patient: {type: 'selector'}, monitor: {type: 'selector'}, side: {default: 'left'} },
+  init: function () {
+    const T = THREE;
+    this.cuff = new T.Mesh(new T.CylinderGeometry(0.058, 0.058, 0.15, 24, 1, true),
+      new T.MeshStandardMaterial({ color: '#2b4f86', roughness: 0.85, side: T.DoubleSide }));
+    const hit = new T.Mesh(new T.CylinderGeometry(0.09, 0.09, 0.2, 8), new T.MeshBasicMaterial({ visible: false }));
+    this.cuff.add(hit);
+    this.el.setObject3D('mesh', this.cuff);
+    this.hoseMat = new T.MeshStandardMaterial({ color: '#7d858c', roughness: 0.6 });
+    this.last = '';
+    this.el.addEventListener('click', () => {
+      if (this.data.side === 'left') {
+        this.el.setAttribute('bp-cuff', 'side', 'right');
+        showMsg('✔ 오류 발견 · 교정 (E6)<br>Lt. arm save인데 왼팔에 BP 커프 → 커프 제거 후 오른팔에서 V/S 측정');
+      } else showMsg('BP 커프: 오른팔에 감겨 있어요 (정상).');
+    });
+  },
+  update: function () { this.last = ''; },
+  bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
+  tick: function () {
+    const pt = this.data.patient.getObject3D('mesh'), mon = this.data.monitor;
+    if (!pt || !mon.getObject3D('mesh')) return;
+    const S = this.data.side === 'left' ? 'Left' : 'Right';
+    const sh = this.bone(pt, S + 'Arm'), el = this.bone(pt, S + 'ForeArm'); if (!sh || !el) return;
+    const V = THREE.Vector3, a = sh.getWorldPosition(new V()), b = el.getWorldPosition(new V());
+    mon.object3D.updateMatrixWorld(true);
+    const port = mon.object3D.localToWorld(new V(-0.87, 0.29, -0.087));   // 모니터 옆면 커프 연결구
+    const key = [a, b, port].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
+    if (key === this.last) return; this.last = key;
+    // 커프: 어깨~팔꿈치 사이 가운데에서 약간 어깨 쪽, 팔 방향으로 세움
+    const mid = a.clone().lerp(b, 0.45), dir = b.clone().sub(a).normalize();
+    this.el.object3D.position.copy(mid);
+    this.el.object3D.quaternion.setFromUnitVectors(new V(0, 1, 0), dir);
+    // 연결 호스: 커프 → 아래로 처졌다가 → 모니터 연결구
+    const m1 = mid.clone().lerp(port, 0.35); m1.y = Math.min(mid.y, port.y) - 0.15;
+    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([mid.clone(), m1, port]), 50, 0.005, 6, false);
+    if (this.hose) { this.hose.geometry.dispose(); this.hose.geometry = geo; }
+    else { this.hose = new THREE.Mesh(geo, this.hoseMat); this.el.sceneEl.object3D.add(this.hose); }
+  }
+});
+
 /* 고리에 걸기: 모델이 불러와지면 맨 윗부분 가운데가 지정한 고리 위치에 오도록 자리를 잡음 */
 AFRAME.registerComponent('hang-on', {
   schema: { type: 'vec3' },   // 고리 위치 (x y z)
@@ -289,6 +381,8 @@ function showMsg(html){
       <option value="sanitizer">손소독제</option>
       <option value="soap">손세정제</option>
       <option value="towel">페이퍼 타월</option>
+      <option value="mstand">모니터 스탠드</option>
+      <option value="monitor">모니터</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
   <label>앞·뒤 <span class="v" id="vz"></span><input type="range" id="pz" min="-4" max="-1" step="0.01"></label>
@@ -365,6 +459,16 @@ function showMsg(html){
     <a-plane class="clickable" pump-screen="rate: 20; order: 80; fluid: Plasma 1L"
              width="0.36" height="0.27" position="0.235 0.43 0.356"></a-plane>
   </a-entity>
+
+  <!-- 환자 모니터: 환자 왼쪽(침대 머리 쪽 옆) 바퀴 달린 스탠드 위 · 화면이 침대 발치·폴대 쪽을 향함 -->
+  <a-entity id="mstand" gltf-model="url(monitor_stand.glb)" scale="0.58 0.58 0.58" position="0.95 0.552 -3.05" rotation="0 -25 0"></a-entity>
+  <a-entity id="monitor" gltf-model="url(monitor.glb)" scale="0.165 0.165 0.165" position="0.973 1.261 -3.05" rotation="0 -25 0">
+    <!-- 활력징후 값은 여기서 바꾸면 돼요 -->
+    <a-plane monitor-screen="hr: 112; sbp: 98; dbp: 58; spo2: 96; rr: 22; bt: 36.8"
+             width="1.48" height="1.0" position="0.01 0.105 0.555"></a-plane>
+  </a-entity>
+  <!-- BP 커프 (환자 왼팔, 모니터와 호스로 연결) — 클릭하면 오른팔로 옮김 (E6) -->
+  <a-entity id="cuff" class="clickable" bp-cuff="patient: #patient; monitor: #monitor; side: left"></a-entity>
 
   <!-- 3-way (클릭 가능) -->
   <a-entity id="threeway" class="clickable"></a-entity>
