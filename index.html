@@ -18,6 +18,13 @@
   #msg{margin-top:6px;color:#b33}
   #toast{display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:12;background:rgba(255,255,255,.96);
     padding:10px 14px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.25);font-size:15px;max-width:90%}
+  /* 시작 안내창 */
+  #intro{position:fixed;inset:0;z-index:20;background:rgba(10,15,25,.75);display:flex;align-items:center;justify-content:center;padding:16px}
+  #intro .card{background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:88vh;overflow:auto;padding:20px;line-height:1.55;font-size:15px}
+  #intro h2{margin:0 0 8px;font-size:20px;color:#1d4e89}
+  #intro h3{margin:14px 0 4px;font-size:16px}
+  #startBtn{margin-top:14px;border:0;border-radius:8px;padding:10px 14px;font-size:15px;background:#2a9d8f;color:#fff;cursor:pointer}
+  #intro.hidden{display:none}
 </style>
 <script>
 /* 환자: 모델에 들어 있는 동작(누운 자세)으로 멈춘 뒤, 침대 매트리스 위에 자동으로 눕힘 */
@@ -377,6 +384,24 @@ function showMsg(html){
 </script>
 </head>
 <body>
+
+<!-- 시작 안내창: 웹페이지를 열면 학습자에게 가장 먼저 보이는 화면 -->
+<div id="intro"><div class="card">
+  <h2>Room of Errors</h2>
+  <b>복강경 담낭절제술 후 환자의 안전위험 및 이상징후 인지</b>
+  <h3>환자</h3>
+  나예민 / 여 / 60세 · Acute cholecystitis → 금일 Lap. cholecystectomy 후 병동 복귀 (도착 1시간 후 진입)<br>
+  과거력: 뇌경색·고혈압·고지혈증 · <b>Lt. breast cancer → Lt. MRM with ALND (5년 전) → Lt. arm save</b>
+  <h3>인계 간호사</h3>
+  "1시간 전 병동 도착 시 JP drain은 혈성 20 mL였고, IV PCA 적용 중이며, Lt. arm save 처방 있습니다."
+  <h3>과제</h3>
+  병실에 <b>안전 오류가 숨어 있습니다</b>(종류·위치 비공개). 처방과 병실을 대조해 오류를 찾아 교정하세요. 제한시간 <b>10분</b>.<br>
+  정상 항목을 오류로 보고하면 1건당 -2점입니다.
+  <h3>조작법</h3>
+  PC: 마우스 드래그로 둘러보기, W·A·S·D로 이동, 물건 클릭<br>
+  휴대폰·태블릿: 화면을 끌어 둘러보기, 물건 터치
+  <div><button id="startBtn" onclick="document.getElementById('intro').classList.add('hidden')">시작하기</button></div>
+</div></div>
 
 <div id="toast"></div>
 <div id="views" style="position:fixed;top:48px;right:8px;z-index:11;display:flex;flex-direction:column;gap:6px">
