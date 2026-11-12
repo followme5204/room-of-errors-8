@@ -412,6 +412,61 @@ AFRAME.registerComponent('jp-drain', {
   }
 });
 
+/* 오른팔 말초정맥관 드레싱: 투명 필름(테가덤) + 18G 카테터 허브(초록) + 라벨(날짜·게이지·시간)
+   삽입 부위 = 아래팔~손등 사이(수액 줄이 들어가는 곳). 필름은 팔 곡면을 따라 살짝 휘게 붙임 */
+AFRAME.registerComponent('iv-dressing', {
+  schema: { patient: {type: 'selector'}, label: {default: '12/14 18G 2pm'} },
+  init: function () {
+    const T = THREE, W = 0.06, L = 0.07;                 // 필름 크기: 폭 6cm × 길이 7cm (팔 방향)
+    // 필름 그림: 투명한 창 + 흰 테두리 + 아래쪽 라벨 띠(글씨)
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 600;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, 512, 600);
+    g.fillStyle = 'rgba(235,245,255,0.22)'; g.fillRect(0, 0, 512, 600);              // 투명 필름
+    g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 26; g.strokeRect(13, 13, 486, 574);   // 테두리
+    g.fillStyle = 'rgba(255,255,255,0.97)'; g.fillRect(0, 470, 512, 130);             // 라벨 띠
+    g.fillStyle = '#1b2a6b'; g.font = 'bold 66px "Segoe Print","Comic Sans MS",cursive,sans-serif';
+    let fs = 70; do { g.font = 'bold ' + fs + 'px "Segoe Print","Comic Sans MS",cursive,sans-serif'; fs -= 2; }
+    while (g.measureText(this.data.label).width > 460 && fs > 20);                  // 띠 안에 들어가게 글씨 크기 맞춤
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(this.data.label, 256, 537);
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
+    const geo = new T.PlaneGeometry(W, L, 12, 1); geo.rotateX(-Math.PI / 2);         // 눕힘: 폭=x, 길이=z
+    geo.rotateY(-Math.PI / 2);                                                        // 길이 방향을 x(팔 방향)로, 라벨 띠는 팔꿈치 쪽
+    const pos = geo.attributes.position, R = 0.04;                                   // 팔 곡면(반지름 4cm)을 따라 휨
+    for (let i = 0; i < pos.count; i++) { const w = pos.getZ(i); pos.setY(i, -(R - Math.sqrt(R * R - w * w))); }
+    geo.computeVertexNormals();
+    this.film = new T.Mesh(geo, new T.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.15,
+      metalness: 0, side: T.DoubleSide, depthWrite: false }));
+    // 18G 카테터 허브(초록) + 날개
+    this.hub = new T.Group();
+    const green = new T.MeshStandardMaterial({ color: '#2e9e4f', roughness: 0.4 });
+    const body = new T.Mesh(new T.CylinderGeometry(0.0035, 0.0045, 0.022, 14), green); body.rotation.z = Math.PI / 2; this.hub.add(body);
+    const wing = new T.Mesh(new T.BoxGeometry(0.01, 0.0012, 0.02), green); wing.position.x = 0.004; this.hub.add(wing);
+    this.grp = new T.Group(); this.grp.add(this.film); this.grp.add(this.hub);
+    this.el.setObject3D('mesh', this.grp);
+    this.ray = new T.Raycaster(); this.last = '';
+  },
+  bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
+  tick: function () {
+    const pt = this.data.patient.getObject3D('mesh'); if (!pt) return;
+    const fore = this.bone(pt, 'RightForeArm'), hand = this.bone(pt, 'RightHand'); if (!fore || !hand) return;
+    const V = THREE.Vector3, F = fore.getWorldPosition(new V()), H = hand.getWorldPosition(new V());
+    const key = [F, H].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
+    if (key === this.last) return; this.last = key;
+    const S = F.clone().lerp(H, 0.7);                       // 삽입 부위 (수액 줄 끝과 같은 곳)
+    const dir = new V(H.x - F.x, 0, H.z - F.z).normalize();  // 팔 방향 (팔꿈치 → 손)
+    // 팔 윗면 높이: 위에서 아래로 쏘아 팔 표면 찾기 (못 찾으면 뼈 위 2.5cm)
+    this.ray.set(new V(S.x, S.y + 0.4, S.z), new V(0, -1, 0));
+    const hit = this.ray.intersectObject(pt, true).find(h => h.point.y < S.y + 0.15);
+    const top = hit ? hit.point.y : S.y + 0.025;
+    const o = this.el.object3D;
+    o.position.set(S.x, top + 0.003, S.z);
+    o.rotation.set(0, Math.atan2(-dir.z, dir.x), 0);        // 필름 길이 방향 = 팔 방향(+x = 손 쪽)
+    this.film.position.set(0.004, 0, 0);                     // 삽입 부위~허브가 필름 투명 창 안에 오도록
+    this.hub.position.set(0.012, 0.002, 0);                  // 카테터는 팔꿈치(심장) 쪽으로 들어가고, 허브는 손 쪽에 있음
+  }
+});
+
 /* 인퓨전펌프 화면: 주입 속도 표시. 클릭하면 처방 속도로 교정 (E4) */
 AFRAME.registerComponent('pump-screen', {
   schema: { rate: {default: 20}, order: {default: 80}, fluid: {default: 'Plasma 1L'} },
@@ -582,6 +637,9 @@ function showMsg(html){
   <!-- BP 커프 (환자 왼팔, 모니터와 호스로 연결) — 클릭하면 오른팔로 옮김 (E6) -->
   <!-- JP 배액관: 환자 오른쪽 상복부에서 나와 오른쪽 옆 매트리스 위 bulb로 (자리는 자동으로 잡힘) -->
   <a-entity id="jp" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed" position="-0.5 0.6 -2.4"></a-entity>
+
+  <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
+  <a-entity id="ivsite" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
 
   <a-entity id="cuff" class="clickable" bp-cuff="patient: #patient; monitor: #monitor; side: left"></a-entity>
 
