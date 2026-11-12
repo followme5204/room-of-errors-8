@@ -264,14 +264,16 @@ AFRAME.registerComponent('bp-cuff', {
 
 /* 고리에 걸기: 모델이 불러와지면 맨 윗부분 가운데가 지정한 고리 위치에 오도록 자리를 잡음 */
 AFRAME.registerComponent('hang-on', {
-  schema: { hook: {type: 'vec3'}, loop: {default: 0} },   // hook: 고리 맨 아래 위치 (x y z), loop: 걸이 고리 반지름(m, 0이면 없음)
+  schema: { hook: {type: 'vec3'}, loop: {default: 0}, top: {default: 0} },
+  // hook: 폴대 고리 맨 아래 위치 (x y z) · loop: 걸이 끈 고리 반지름(m, 0이면 없음)
+  // top: 고리보다 모델 맨 윗부분이 얼마나 위에 오는지(m). 수액백처럼 구멍에 고리가 끼워지는 경우에 씀
   init: function () {
     this.el.addEventListener('model-loaded', () => {
       const o = this.el.object3D; o.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(this.el.getObject3D('mesh'));
       const h = this.data.hook, r = this.data.loop, p = o.position;
       // 걸이 고리가 있으면: 고리가 폴대 고리에 걸리고, 그 아래에 물건 윗부분이 매달림
-      const topY = r ? h.y + 0.005 - 2 * r + 0.004 : h.y;
+      const topY = r ? h.y + 0.005 - 2 * r + 0.004 : h.y + this.data.top;
       this.el.setAttribute('position', {
         x: +(p.x + h.x - (box.min.x + box.max.x) / 2).toFixed(3),
         y: +(p.y + topY - box.max.y).toFixed(3),
@@ -558,7 +560,7 @@ function showMsg(html){
   <!-- 폴대 고리 4개 위치 (수액폴대 모델에서 계산): 바닥에서 약 1.77m
        A(-1.09, -3.02)  B(-0.97, -3.37)  ← 보는 사람 쪽 /  C(-0.54, -3.02)  D(-0.70, -3.38) ← 침대 쪽 -->
   <!-- 수액백 (iv_bag.glb) — 고리 A에 걸림 -->
-  <a-entity id="ivbag" gltf-model="url(iv_bag.glb)" scale="0.4 0.4 0.4" position="-1.09 1.39 -3.02" hang-on="hook: -1.091 1.77 -3.016"></a-entity>
+  <a-entity id="ivbag" gltf-model="url(iv_bag.glb)" scale="0.4 0.4 0.4" position="-1.09 1.39 -3.02" hang-on="hook: -1.088 1.772 -3.022; top: 0.038"></a-entity>
 
   <!-- PCA (pca.glb, 탄력식 통증조절기) — 수액백 옆 고리 B에 걸림 -->
   <a-entity id="pca" gltf-model="url(pca.glb)" scale="0.24 0.24 0.24" position="-0.97 1.54 -3.37" hang-on="hook: -0.952 1.772 -3.351; loop: 0.02"></a-entity>
