@@ -264,16 +264,24 @@ AFRAME.registerComponent('bp-cuff', {
 
 /* 고리에 걸기: 모델이 불러와지면 맨 윗부분 가운데가 지정한 고리 위치에 오도록 자리를 잡음 */
 AFRAME.registerComponent('hang-on', {
-  schema: { type: 'vec3' },   // 고리 위치 (x y z)
+  schema: { hook: {type: 'vec3'}, loop: {default: 0} },   // hook: 고리 맨 아래 위치 (x y z), loop: 걸이 고리 반지름(m, 0이면 없음)
   init: function () {
     this.el.addEventListener('model-loaded', () => {
       const o = this.el.object3D; o.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(this.el.getObject3D('mesh'));
-      const h = this.data, p = o.position;
+      const h = this.data.hook, r = this.data.loop, p = o.position;
+      // 걸이 고리가 있으면: 고리가 폴대 고리에 걸리고, 그 아래에 물건 윗부분이 매달림
+      const topY = r ? h.y + 0.005 - 2 * r + 0.004 : h.y;
       this.el.setAttribute('position', {
         x: +(p.x + h.x - (box.min.x + box.max.x) / 2).toFixed(3),
-        y: +(p.y + h.y - box.max.y).toFixed(3),
+        y: +(p.y + topY - box.max.y).toFixed(3),
         z: +(p.z + h.z - (box.min.z + box.max.z) / 2).toFixed(3) });
+      if (r) {   // 흰 걸이 고리(스트랩): 폴대 고리 철사를 감싸도록 세로로 세움
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.0028, 8, 32),
+          new THREE.MeshStandardMaterial({ color: '#f1f1f1', roughness: 0.6 }));
+        ring.position.set(h.x, h.y + 0.005 - r, h.z); ring.rotation.y = Math.PI / 2;
+        this.el.sceneEl.object3D.add(ring);
+      }
     });
   }
 });
@@ -550,10 +558,10 @@ function showMsg(html){
   <!-- 폴대 고리 4개 위치 (수액폴대 모델에서 계산): 바닥에서 약 1.77m
        A(-1.09, -3.02)  B(-0.97, -3.37)  ← 보는 사람 쪽 /  C(-0.54, -3.02)  D(-0.70, -3.38) ← 침대 쪽 -->
   <!-- 수액백 (iv_bag.glb) — 고리 A에 걸림 -->
-  <a-entity id="ivbag" gltf-model="url(iv_bag.glb)" scale="0.4 0.4 0.4" position="-1.09 1.39 -3.02" hang-on="-1.091 1.77 -3.016"></a-entity>
+  <a-entity id="ivbag" gltf-model="url(iv_bag.glb)" scale="0.4 0.4 0.4" position="-1.09 1.39 -3.02" hang-on="hook: -1.091 1.77 -3.016"></a-entity>
 
   <!-- PCA (pca.glb, 탄력식 통증조절기) — 수액백 옆 고리 B에 걸림 -->
-  <a-entity id="pca" gltf-model="url(pca.glb)" scale="0.24 0.24 0.24" position="-0.97 1.54 -3.37" hang-on="-0.967 1.77 -3.373"></a-entity>
+  <a-entity id="pca" gltf-model="url(pca.glb)" scale="0.24 0.24 0.24" position="-0.97 1.54 -3.37" hang-on="hook: -0.952 1.772 -3.351; loop: 0.02"></a-entity>
 
   <!-- 인퓨전펌프 (infusion_pump.glb) — 수액폴대에 클램프로 고정, 화면이 '폴대 쪽' 시점을 향함.
        화면: 20 mL/hr (처방 80 mL/hr → E4 오류). 화면을 클릭하면 80으로 교정 -->
