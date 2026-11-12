@@ -346,6 +346,62 @@ AFRAME.registerComponent('iv-set', {
     this.tube('site', [outPort, outPort.clone().lerp(S, 0.5).setY(W.y + 0.01), S]); // 3-way → 오른팔
   }
 });
+/* JP 배액관: 환자 오른쪽 상복부(RUQ)에서 나온 배액관이 환자 오른쪽 옆 매트리스 위 JP bulb로 연결됨.
+   환자 기준 오른쪽 = 화면의 -x 방향 (수액폴대 쪽). 환자 자세가 자리 잡으면 bulb를 한 번 자동 배치하고,
+   그 뒤에는 조절창으로 bulb를 옮겨도 관이 따라감. */
+AFRAME.registerComponent('jp-drain', {
+  schema: { patient: {type: 'selector'}, bed: {type: 'selector'} },
+  init: function () {
+    this.tubeMat = new THREE.MeshStandardMaterial({ color: '#c4404a', roughness: 0.35, transparent: true, opacity: 0.85 });
+    this.placed = false; this.still = 0; this.prev = ''; this.last = ''; this.ray = new THREE.Raycaster();
+    this.TUBE_END = new THREE.Vector3(0.15, -0.62, 0.66);   // 모델 안 배액관 끝(연결구) 위치 (모델 기준 좌표)
+  },
+  bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
+  surfaceY: function (obj, x, z, below) {   // (x,z) 위에서 아래로 쏘아 물체 윗면 높이 찾기
+    this.ray.set(new THREE.Vector3(x, 2.5, z), new THREE.Vector3(0, -1, 0));
+    const hits = this.ray.intersectObject(obj, true).filter(h => h.point.y < below);
+    return hits.length ? hits[0].point.y : null;
+  },
+  tick: function () {
+    const pt = this.data.patient.getObject3D('mesh'), bed = this.data.bed.getObject3D('mesh'),
+          bag = this.el.getObject3D('mesh');
+    if (!pt || !bed || !bag) return;
+    const sp = this.bone(pt, 'Spine'), sp1 = this.bone(pt, 'Spine1'), hips = this.bone(pt, 'Hips');
+    if (!sp || !sp1 || !hips) return;
+    const V = THREE.Vector3, A = sp.getWorldPosition(new V()), B = sp1.getWorldPosition(new V()), H = hips.getWorldPosition(new V());
+    const ruq = A.clone().lerp(B, 0.6);              // 상복부 높이
+    const k = ruq.toArray().map(x => x.toFixed(3)).join();
+    if (!this.placed) {                              // 환자 자세가 멈출 때까지 기다렸다가 한 번만 자동 배치
+      this.still = (k === this.prev) ? this.still + 1 : 0; this.prev = k;
+      if (this.still < 30) return;
+      const s = 0.08, tx = ruq.x - 0.36, tz = (ruq.z + H.z) / 2;   // 환자 오른쪽 옆구리 옆
+      const top = this.surfaceY(bed, tx, tz, H.y + 0.1);
+      const y = (top !== null ? top : H.y - 0.08);
+      this.el.setAttribute('scale', s + ' ' + s + ' ' + s);
+      this.el.setAttribute('rotation', '0 0 0');
+      this.el.setAttribute('position', { x: +(tx + 0.58 * s).toFixed(3), y: +(y + 0.70 * s).toFixed(3), z: +tz.toFixed(3) });
+      this.placed = true; return;
+    }
+    // 삽입 부위: 오른쪽 상복부 옆쪽, 몸 표면
+    if (k !== this.ruqKey) {                         // 환자 자세가 바뀔 때만 몸 표면을 다시 찾음 (태블릿 속도)
+      this.ruqKey = k;
+      const ix = ruq.x - 0.11, iz = ruq.z, sy = this.surfaceY(pt, ix, iz, ruq.y + 0.4);
+      this.P = new V(ix, sy !== null ? sy - 0.005 : ruq.y + 0.1, iz);
+    }
+    const P = this.P;
+    this.el.object3D.updateMatrixWorld(true);
+    const E = this.el.object3D.localToWorld(this.TUBE_END.clone());
+    const key = [P, E].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
+    if (key === this.last) return; this.last = key;
+    // 배액관: 복부 → 옆으로 나와 → 옆구리를 타고 내려와 → bulb 연결구
+    const p1 = P.clone().add(new V(-0.05, 0.015, 0.0));
+    const p2 = P.clone().lerp(E, 0.55); p2.y = Math.max(E.y, P.y - 0.08);
+    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([P, p1, p2, E]), 48, 0.0035, 6, false);
+    if (this.tube) { this.tube.geometry.dispose(); this.tube.geometry = geo; }
+    else { this.tube = new THREE.Mesh(geo, this.tubeMat); this.el.sceneEl.object3D.add(this.tube); }
+  }
+});
+
 /* 인퓨전펌프 화면: 주입 속도 표시. 클릭하면 처방 속도로 교정 (E4) */
 AFRAME.registerComponent('pump-screen', {
   schema: { rate: {default: 20}, order: {default: 80}, fluid: {default: 'Plasma 1L'} },
@@ -425,6 +481,7 @@ function showMsg(html){
       <option value="towel">페이퍼 타월</option>
       <option value="mstand">모니터 스탠드</option>
       <option value="monitor">모니터</option>
+      <option value="jp">JP 배액 bulb</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
   <label>앞·뒤 <span class="v" id="vz"></span><input type="range" id="pz" min="-4" max="-1" step="0.01"></label>
@@ -513,6 +570,9 @@ function showMsg(html){
              width="1.48" height="1.0" position="0.01 0.105 0.555"></a-plane>
   </a-entity>
   <!-- BP 커프 (환자 왼팔, 모니터와 호스로 연결) — 클릭하면 오른팔로 옮김 (E6) -->
+  <!-- JP 배액관: 환자 오른쪽 상복부에서 나와 오른쪽 옆 매트리스 위 bulb로 (자리는 자동으로 잡힘) -->
+  <a-entity id="jp" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed" position="-0.5 0.6 -2.4"></a-entity>
+
   <a-entity id="cuff" class="clickable" bp-cuff="patient: #patient; monitor: #monitor; side: left"></a-entity>
 
   <!-- 3-way (클릭 가능) -->
