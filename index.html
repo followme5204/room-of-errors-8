@@ -853,6 +853,8 @@ function showMsg(html){
   <label>방향 (회전) <span class="v" id="vr"></span><input type="range" id="pr" min="-180" max="180" step="1"></label>
   <label id="lt">자세 (동작 시점, 초) <span class="v" id="vt"></span><input type="range" id="pt" min="0" max="11.4" step="0.1" value="11.4"></label>
   <div id="code"></div>
+  <div id="viewcode" style="margin-top:6px;background:#eef5ff;padding:6px;border-radius:6px;font-size:12px"></div>
+  <button onclick="startView()" style="margin-top:6px;width:100%;padding:6px;border:0;border-radius:6px;background:#2f6fb3;color:#fff">처음 시점으로 돌아가기</button>
   <div id="msg">환자 모델 불러오는 중…</div>
 </div>
 
@@ -1144,12 +1146,28 @@ function upd(){
 }
 ['py','pz','px','pr','pt'].forEach(id => document.getElementById(id).addEventListener('input', upd));
 sel.addEventListener('change', load);
-function setView(x, z, yaw){    // 시점 바꾸기
+/* 처음 화면 시점: 보호자 침대 옆(서랍장 앞)에서 침대·출입문 쪽을 내려다봄.
+   조절창 아래 '현재 시점' 숫자를 여기에 옮겨 적으면 처음 화면이 그 시점으로 바뀌어요 */
+const START_VIEW = { x: -2.7, z: -2.3, yaw: -100, pitch: -12, h: 1.65 };
+function setView(x, z, yaw, pitch, h){    // 시점 바꾸기 (pitch: 위·아래 각도, h: 눈높이)
   const rig = document.getElementById('rig'), lc = document.getElementById('cam').components['look-controls'];
   rig.setAttribute('position', x + ' 0 ' + z); rig.setAttribute('rotation', '0 ' + yaw + ' 0');
-  document.getElementById('cam').setAttribute('position', '0 1.55 0');
-  if (lc) { lc.yawObject.rotation.y = 0; lc.pitchObject.rotation.x = 0; }
+  document.getElementById('cam').setAttribute('position', '0 ' + (h || 1.55) + ' 0');
+  if (lc) { lc.yawObject.rotation.y = 0; lc.pitchObject.rotation.x = (pitch || 0) * Math.PI / 180; }
 }
+function startView(){ const s = START_VIEW; setView(s.x, s.z, s.yaw, s.pitch, s.h); }
+(function waitCam(){                       // 카메라가 준비되면 처음 시점으로
+  const c = document.getElementById('cam');
+  if (c && c.components && c.components['look-controls']) startView(); else setTimeout(waitCam, 100);
+})();
+setInterval(() => {                         // 조절창에 지금 보고 있는 시점 숫자 표시
+  const rig = document.getElementById('rig'), cam = document.getElementById('cam'), el = document.getElementById('viewcode');
+  if (!rig || !cam || !el || !cam.components['look-controls']) return;
+  const lc = cam.components['look-controls'], cp = cam.object3D.position, rp = rig.object3D.position, ry = rig.object3D.rotation.y;
+  const wx = rp.x + cp.x * Math.cos(ry) + cp.z * Math.sin(ry), wz = rp.z - cp.x * Math.sin(ry) + cp.z * Math.cos(ry);
+  const yaw = (ry + lc.yawObject.rotation.y) * 180 / Math.PI, pitch = lc.pitchObject.rotation.x * 180 / Math.PI;
+  el.textContent = `현재 시점: x: ${wx.toFixed(2)}, z: ${wz.toFixed(2)}, yaw: ${Math.round(yaw)}, pitch: ${Math.round(pitch)}, h: ${cp.y.toFixed(2)}`;
+}, 500);
 window.onPatientPlaced = () => { if (sel.value === 'patient') load(); };
 load();
 document.getElementById('toggle').onclick = function(){
