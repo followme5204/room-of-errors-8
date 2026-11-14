@@ -741,6 +741,7 @@ function showMsg(html){
       <option value="mstand">모니터 스탠드</option>
       <option value="monitor">모니터</option>
       <option value="jp">JP 배액 bulb</option>
+      <option value="cabinet">서랍장</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
   <label>앞·뒤 <span class="v" id="vz"></span><input type="range" id="pz" min="-4" max="-1" step="0.01"></label>
@@ -828,6 +829,25 @@ function showMsg(html){
   <a-entity id="pump" gltf-model="url(infusion_pump.glb)" scale="0.2 0.2 0.2" position="-0.756 0.95 -3.053" rotation="0 -52 0">
     <a-plane class="clickable" pump-screen="rate: 20; order: 80; fluid: Plasma 1L"
              width="0.36" height="0.27" position="0.235 0.43 0.356"></a-plane>
+  </a-entity>
+
+  <!-- 병실 서랍장(키큰장): 폭 50 × 깊이 50 × 높이 210cm · 수액폴대 옆, 침대 머리 쪽 벽에 붙여 세움 · 앞면이 TV 쪽을 바라봄
+       아래부터: 문 달린 하부장 → 서랍 → 열린 선반 칸 → 문 달린 상부장 -->
+  <a-entity id="cabinet" position="-1.55 0 -3.94" rotation="0 0 0">
+    <a-box width="0.018" height="2.1" depth="0.5" position="-0.241 1.05 0" material="color:#d8c49b; roughness:0.7"></a-box>
+    <a-box width="0.018" height="2.1" depth="0.5" position="0.241 1.05 0" material="color:#d8c49b; roughness:0.7"></a-box>
+    <a-box width="0.464" height="2.1" depth="0.012" position="0 1.05 -0.244" material="color:#c9b385; roughness:0.7"></a-box>
+    <a-box width="0.5" height="0.02" depth="0.5" position="0 2.09 0" material="color:#d8c49b; roughness:0.7"></a-box>
+    <a-box width="0.464" height="0.06" depth="0.46" position="0 0.03 -0.01" material="color:#9c8763; roughness:0.7"></a-box>
+    <a-box width="0.5" height="0.026" depth="0.51" position="0 0.785 0.005" material="color:#d8c49b; roughness:0.7"></a-box>
+    <a-box width="0.464" height="0.02" depth="0.49" position="0 1.305 0" material="color:#d8c49b; roughness:0.7"></a-box>
+    <a-box width="0.46" height="0.535" depth="0.018" position="0 0.3275 0.247" material="color:#dfcda6; roughness:0.7"></a-box>
+    <a-box width="0.46" height="0.004" depth="0.004" position="0 0.599 0.256" material="color:#8a7756; roughness:0.7"></a-box>
+    <a-box width="0.46" height="0.155" depth="0.018" position="0 0.685 0.247" material="color:#dfcda6; roughness:0.7"></a-box>
+    <a-box width="0.46" height="0.765" depth="0.018" position="0 1.6975 0.247" material="color:#dfcda6; roughness:0.7"></a-box>
+    <a-box width="0.016" height="0.09" depth="0.016" position="-0.18 0.48 0.264" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-box width="0.12" height="0.022" depth="0.014" position="0 0.69 0.263" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-box width="0.016" height="0.09" depth="0.016" position="-0.18 1.4 0.264" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
   </a-entity>
 
   <!-- 환자 모니터: 환자 왼쪽(침대 머리 쪽 옆) 바퀴 달린 스탠드 위 · 화면이 침대 발치·폴대 쪽을 향함 -->
