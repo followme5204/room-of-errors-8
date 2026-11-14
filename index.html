@@ -844,7 +844,6 @@ function showMsg(html){
       <option value="jp">JP 배액 bulb</option>
       <option value="cabinet">서랍장</option>
       <option value="gbed">보호자 침대</option>
-      <option value="cart">이동식 카트</option>
       <option value="wastebox">의료폐기물 용기</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
@@ -940,9 +939,9 @@ function showMsg(html){
   <!-- 손씻기 구역: 세면대(sink.glb)를 오른쪽 벽에 붙임 — 문에서 약 0.7m 떨어져 문을 가리지 않음.
        세면대 윗면 높이 약 0.85m -->
   <a-entity id="sink" gltf-model="url(sink.glb)" scale="0.28 0.28 0.28" position="2.934 0.748 -1.0" rotation="0 -90 0"></a-entity>
-  <!-- 의료폐기물(적출물) 전용용기: 벽면 손소독제 바로 밑 바닥, 벽에 붙임 · 골판지 상자형(일반의료폐기물), 원래 크기의 80%
-       (폭 약 29 × 깊이 24 × 높이 37cm) · 라벨이 방 안쪽을 향함 -->
-  <a-entity id="wastebox" position="3.065 0 -0.55" rotation="0 -90 0" scale="0.8 0.8 0.8">
+  <!-- 의료폐기물(적출물) 전용용기: 벽면 손소독제 바로 밑 바닥, 벽에 붙임 · 골판지 상자형(일반의료폐기물), 원래 크기의 40%
+       (폭 약 14 × 깊이 12 × 높이 19cm) · 라벨이 방 안쪽을 향함 -->
+  <a-entity id="wastebox" position="3.12 0 -0.55" rotation="0 -90 0" scale="0.4 0.4 0.4">
     <a-box width="0.36" height="0.44" depth="0.3" position="0 0.22 0" material="color:#c9a46c; roughness:0.95"></a-box>
     <a-box width="0.372" height="0.025" depth="0.312" position="0 0.452 0" material="color:#b8925a; roughness:0.95"></a-box>
     <a-box width="0.06" height="0.003" depth="0.314" position="0 0.466 0" material="color:#e9d9a8; roughness:0.6"></a-box>
@@ -1083,38 +1082,7 @@ function showMsg(html){
     <a-plane width="1.15" height="0.08" position="0 1.984 0.05" rotation="90 0 0" material="shader:flat; color:#fff6e6"></a-plane>
   </a-entity>
 
-  <!-- 이동식 카트(서랍 4단): 환자 모니터 뒤편, 침대 머리 쪽 벽(창문 아래)에 붙여 둠 · 서랍이 방 안쪽을 향함 -->
-  <a-entity id="cart" class="onwall" position="1.65 0 -3.92" rotation="0 0 0">
-    <a-cylinder radius="0.04" height="0.025" position="-0.27 0.04 -0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
-    <a-box width="0.03" height="0.05" depth="0.03" position="-0.27 0.09 -0.19" material="color:#555; metalness:0.5"></a-box>
-    <a-cylinder radius="0.04" height="0.025" position="-0.27 0.04 0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
-    <a-box width="0.03" height="0.05" depth="0.03" position="-0.27 0.09 0.19" material="color:#555; metalness:0.5"></a-box>
-    <a-cylinder radius="0.04" height="0.025" position="0.27 0.04 -0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
-    <a-box width="0.03" height="0.05" depth="0.03" position="0.27 0.09 -0.19" material="color:#555; metalness:0.5"></a-box>
-    <a-cylinder radius="0.04" height="0.025" position="0.27 0.04 0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
-    <a-box width="0.03" height="0.05" depth="0.03" position="0.27 0.09 0.19" material="color:#555; metalness:0.5"></a-box>
-    <a-box width="0.6" height="0.03" depth="0.44" position="0 0.13 0" material="color:#4b4f55; metalness:0.3"></a-box>
-    <a-box width="0.56" height="0.82" depth="0.42" position="0 0.555 0" material="color:#8e9297; roughness:0.6"></a-box>
-    <a-box width="0.53" height="0.128" depth="0.012" position="0 0.89 0.216" material="color:#a6a9ad; roughness:0.5"></a-box>
-    <a-box width="0.14" height="0.018" depth="0.016" position="0 0.925 0.228" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
-    <a-box width="0.53" height="0.158" depth="0.012" position="0 0.73 0.216" material="color:#a6a9ad; roughness:0.5"></a-box>
-    <a-box width="0.14" height="0.018" depth="0.016" position="0 0.780 0.228" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
-    <a-box width="0.53" height="0.19799999999999998" depth="0.012" position="0 0.535 0.216" material="color:#a6a9ad; roughness:0.5"></a-box>
-    <a-box width="0.14" height="0.018" depth="0.016" position="0 0.605 0.228" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
-    <a-box width="0.53" height="0.188" depth="0.012" position="0 0.315 0.216" material="color:#a6a9ad; roughness:0.5"></a-box>
-    <a-box width="0.14" height="0.018" depth="0.016" position="0 0.380 0.228" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
-    <a-box width="0.62" height="0.02" depth="0.46" position="0 0.975 0" material="color:#9a9da2"></a-box>
-    <a-box width="0.62" height="0.04" depth="0.012" position="0 1.0 0.225" material="color:#9a9da2"></a-box>
-    <a-box width="0.62" height="0.04" depth="0.012" position="0 1.0 -0.225" material="color:#9a9da2"></a-box>
-    <a-box width="0.012" height="0.04" depth="0.46" position="-0.305 1.0 0" material="color:#9a9da2"></a-box>
-    <a-box width="0.012" height="0.04" depth="0.46" position="0.305 1.0 0" material="color:#9a9da2"></a-box>
-    <a-cylinder radius="0.012" height="0.36" position="-0.34 0.9 0" rotation="90 0 0" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-cylinder>
-    <a-box width="0.04" height="0.02" depth="0.02" position="-0.315 0.9 0.17" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
-    <a-box width="0.04" height="0.02" depth="0.02" position="-0.315 0.9 -0.17" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
-    <a-box width="0.26" height="0.025" depth="0.18" position="-0.1 1.0 0.02" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
-    <a-box width="0.13" height="0.07" depth="0.24" position="0.17 1.02 0" material="color:#f4f6f8"></a-box>
-    <a-box width="0.08" height="0.002" depth="0.04" position="0.17 1.056 0.05" material="color:#6aa2d8"></a-box>
-  </a-entity>
+  <!-- 이동식 카트(처치 카트): Meshy glb(treatment_cart.glb)로 다시 넣을 자리 — 환자 모니터 뒤편, 침대 머리 쪽 벽(창문 아래) -->
 
   <!-- 환자 모니터: 환자 왼쪽(침대 머리 쪽 옆) 바퀴 달린 스탠드 위 · 화면이 침대 발치·폴대 쪽을 향함 -->
   <a-entity id="mstand" gltf-model="url(monitor_stand.glb)" scale="0.58 0.58 0.58" position="0.95 0.552 -3.05" rotation="0 -25 0"></a-entity>
