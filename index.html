@@ -940,8 +940,9 @@ function showMsg(html){
   <!-- 손씻기 구역: 세면대(sink.glb)를 오른쪽 벽에 붙임 — 문에서 약 0.7m 떨어져 문을 가리지 않음.
        세면대 윗면 높이 약 0.85m -->
   <a-entity id="sink" gltf-model="url(sink.glb)" scale="0.28 0.28 0.28" position="2.934 0.748 -1.0" rotation="0 -90 0"></a-entity>
-  <!-- 의료폐기물(적출물) 전용용기: 세면대 밑 바닥, 벽에 붙임 · 골판지 상자형(일반의료폐기물) · 라벨이 방 안쪽을 향함 -->
-  <a-entity id="wastebox" position="3.03 0 -1.0" rotation="0 -90 0">
+  <!-- 의료폐기물(적출물) 전용용기: 벽면 손소독제 바로 밑 바닥, 벽에 붙임 · 골판지 상자형(일반의료폐기물), 원래 크기의 80%
+       (폭 약 29 × 깊이 24 × 높이 37cm) · 라벨이 방 안쪽을 향함 -->
+  <a-entity id="wastebox" position="3.065 0 -0.55" rotation="0 -90 0" scale="0.8 0.8 0.8">
     <a-box width="0.36" height="0.44" depth="0.3" position="0 0.22 0" material="color:#c9a46c; roughness:0.95"></a-box>
     <a-box width="0.372" height="0.025" depth="0.312" position="0 0.452 0" material="color:#b8925a; roughness:0.95"></a-box>
     <a-box width="0.06" height="0.003" depth="0.314" position="0 0.466 0" material="color:#e9d9a8; roughness:0.6"></a-box>
