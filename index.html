@@ -231,12 +231,7 @@ AFRAME.registerComponent('bp-cuff', {
     this.el.setObject3D('mesh', this.cuff);
     this.hoseMat = new T.MeshStandardMaterial({ color: '#7d858c', roughness: 0.6 });
     this.last = '';
-    this.el.addEventListener('click', () => {
-      if (this.data.side === 'left') {
-        this.el.setAttribute('bp-cuff', 'side', 'right');
-        showMsg('✔ 오류 발견 · 교정 (E6)<br>Lt. arm save인데 왼팔에 BP 커프 → 커프 제거 후 오른팔에서 V/S 측정');
-      } else showMsg('BP 커프: 오른팔에 감겨 있어요 (정상).');
-    });
+    this.el.addEventListener('click', () => openItem('e6'));
   },
   update: function () { this.last = ''; },
   bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
@@ -326,11 +321,7 @@ AFRAME.registerComponent('iv-set', {
     this.tag = new T.Mesh(new T.PlaneGeometry(0.05,0.025), new T.MeshBasicMaterial({map: tt, side: T.DoubleSide, toneMapped:false}));
     this.el.sceneEl.object3D.add(this.tag);
     this.data.threeway.setObject3D('mesh', g);
-    this.data.threeway.addEventListener('click', () => {
-      if (!this.data.pcaClosed) { showMsg('3-way: 세 방향 모두 열려 있어요 (정상).'); return; }
-      this.el.setAttribute('iv-set', 'pcaClosed', false);
-      showMsg('✔ 오류 발견 · 교정 (E5)<br>3-way가 PCA 쪽으로 잠겨 있었어요 → 손잡이를 돌려 PCA 라인 개방, 통증(NRS) 재사정');
-    });
+    this.data.threeway.addEventListener('click', () => openItem('e5'));
   },
   update: function () {   // 손잡이 방향: PCA 포트 쪽(+z) = PCA 차단 / 반대쪽(-z) = 모두 열림
     if (this.lever) this.lever.rotation.y = this.data.pcaClosed ? 0 : Math.PI;   // 긴 팔이 PCA 포트(+z)를 가리키면 PCA 잠김
@@ -483,6 +474,7 @@ AFRAME.registerComponent('iv-dressing', {
     const body = new T.Mesh(new T.CylinderGeometry(0.0035, 0.0045, 0.022, 14), green); body.rotation.z = Math.PI / 2; this.hub.add(body);
     const wing = new T.Mesh(new T.BoxGeometry(0.01, 0.0012, 0.02), green); wing.position.x = 0.004; this.hub.add(wing);
     this.grp = new T.Group(); this.grp.add(this.film); this.grp.add(this.hub);
+    this.grp.add(new T.Mesh(new T.BoxGeometry(0.12, 0.06, 0.12), new T.MeshBasicMaterial({ visible: false })));   // 클릭 영역
     this.el.setObject3D('mesh', this.grp);
     this.ray = new T.Raycaster(); this.last = '';
   },
@@ -514,13 +506,7 @@ AFRAME.registerComponent('pump-screen', {
     this.cv = document.createElement('canvas'); this.cv.width = 512; this.cv.height = 384;
     this.tex = new THREE.CanvasTexture(this.cv);
     this.mat = new THREE.MeshBasicMaterial({ map: this.tex, side: THREE.DoubleSide });
-    this.el.addEventListener('click', () => {
-      if (this.data.rate !== this.data.order) {
-        const was = this.data.rate;
-        this.el.setAttribute('pump-screen', 'rate', this.data.order);
-        showMsg('✔ 오류 발견 · 교정 (E4)<br>주입 속도 ' + was + ' mL/hr → 처방 ' + this.data.order + ' mL/hr로 교정, 5 Rights 재확인');
-      } else showMsg('인퓨전펌프: ' + this.data.order + ' mL/hr로 주입 중 (처방과 일치).');
-    });
+    this.el.addEventListener('click', () => openItem('e4'));   // 클릭 → 팝업 (교정은 팝업에서)
   },
   update: function () {   // 화면 그리기
     const c = this.cv.getContext('2d');
@@ -854,12 +840,31 @@ function showMsg(html){
   병실에 <b>안전 오류가 숨어 있습니다</b>(종류·위치 비공개). 처방과 병실을 대조해 오류를 찾아 교정하세요. 제한시간 <b>10분</b>.<br>
   정상 항목을 오류로 보고하면 1건당 -2점입니다.
   <h3>조작법</h3>
+  물건을 클릭하면 관찰 내용이 나옵니다 → <b>[오류입니다]</b> 또는 <b>[정상입니다]</b>를 고르세요. 오류를 찾으면 교정된 모습으로 바뀝니다.<br>
   PC: 마우스 드래그로 둘러보기, W·A·S·D로 이동, 물건 클릭<br>
   휴대폰·태블릿: 화면을 끌어 둘러보기, 물건 터치
-  <div><button id="startBtn" onclick="document.getElementById('intro').classList.add('hidden')">시작하기</button></div>
+  <div><button id="startBtn" onclick="roeStart()">시작하기</button></div>
 </div></div>
 
 <div id="toast"></div>
+<!-- 게임 화면: 위쪽 상태 띠 + 팝업 + 결과 -->
+<style>
+  #roeHud{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:13;display:none;gap:8px;align-items:center;
+    background:rgba(20,30,45,.88);color:#fff;padding:6px 10px;border-radius:10px;font-size:15px}
+  #roeHud b{font-size:17px} .rb{border:0;border-radius:8px;padding:8px 12px;font-size:14px;cursor:pointer;font-family:inherit}
+  .r-red{background:#d62839;color:#fff}.r-green{background:#2a9d8f;color:#fff}.r-gray{background:#dde1e7;color:#222}.r-blue{background:#1d4e89;color:#fff}
+  #roePop,#roeResult{position:fixed;inset:0;z-index:30;background:rgba(10,15,25,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+  #roePop.hidden,#roeResult.hidden{display:none}
+  #roePop .card,#roeResult .card{background:#fff;border-radius:14px;max-width:520px;width:100%;max-height:86vh;overflow:auto;padding:18px;line-height:1.6;font-size:15px}
+  #roePop h3{margin:0 0 8px;color:#1d4e89} .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .ok{color:#1a7f37;font-weight:bold}.ng{color:#c62828;font-weight:bold}
+  #roeResult table,#roePop table{border-collapse:collapse;width:100%;font-size:14px} #roeResult td,#roePop td{border:1px solid #ddd;padding:5px 7px;vertical-align:top}
+</style>
+<div id="roeHud">⏱ <b id="roeTimer">10:00</b> · 찾은 오류 <b id="roeFound">0</b>/8
+  <button class="rb r-blue" onclick="openItem('chart')">📋 처방·차트</button>
+  <button class="rb r-red" onclick="if(confirm('종료하고 결과를 볼까요?'))roeFinish()">종료 · 결과</button></div>
+<div id="roePop" class="hidden"><div class="card"><h3 id="roeTitle"></h3><div id="roeBody"></div><div class="row" id="roeBtns"></div></div></div>
+<div id="roeResult" class="hidden"><div class="card" id="roeResultBody"></div></div>
 <div id="views" style="position:fixed;top:48px;right:8px;z-index:11;display:flex;flex-direction:column;gap:6px">
   <button onclick="startView()" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">출입문에서 보기(처음 시점)</button>
   <button onclick="setView(-2.2,-2.0,-52)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">폴대 쪽에서 보기</button>
@@ -1013,10 +1018,10 @@ function showMsg(html){
   <!-- 폴대 고리 4개 위치 (수액폴대 모델에서 계산): 바닥에서 약 1.77m
        A(-1.09, -3.02)  B(-0.97, -3.37)  ← 보는 사람 쪽 /  C(-0.54, -3.02)  D(-0.70, -3.38) ← 침대 쪽 -->
   <!-- 수액백 (iv_bag.glb) — 고리 A에 걸림 -->
-  <a-entity id="ivbag" gltf-model="url(iv_bag.glb)" scale="0.4 0.4 0.4" position="-1.09 1.39 -3.02" hang-on="hook: -1.088 1.772 -3.022; top: 0.038"></a-entity>
+  <a-entity id="ivbag" class="clickable" gltf-model="url(iv_bag.glb)" scale="0.4 0.4 0.4" position="-1.09 1.39 -3.02" hang-on="hook: -1.088 1.772 -3.022; top: 0.038"></a-entity>
 
   <!-- PCA (pca.glb, 탄력식 통증조절기) — 수액백 옆 고리 B에 걸림 -->
-  <a-entity id="pca" gltf-model="url(pca.glb)" scale="0.24 0.24 0.24" position="-0.97 1.54 -3.37" hang-on="hook: -0.952 1.772 -3.351; loop: 0.02"></a-entity>
+  <a-entity id="pca" class="clickable" gltf-model="url(pca.glb)" scale="0.24 0.24 0.24" position="-0.97 1.54 -3.37" hang-on="hook: -0.952 1.772 -3.351; loop: 0.02"></a-entity>
 
   <!-- 인퓨전펌프 (infusion_pump.glb) — 수액폴대에 클램프로 고정, 화면이 '폴대 쪽' 시점을 향함.
        화면: 20 mL/hr (처방 80 mL/hr → E4 오류). 화면을 클릭하면 80으로 교정 -->
@@ -1134,7 +1139,7 @@ function showMsg(html){
   <a-entity id="mstand" gltf-model="url(monitor_stand.glb)" scale="0.58 0.58 0.58" position="0.95 0.552 -3.05" rotation="0 -25 0"></a-entity>
   <a-entity id="monitor" gltf-model="url(monitor.glb)" scale="0.165 0.165 0.165" position="0.973 1.261 -3.05" rotation="0 -25 0">
     <!-- 활력징후 값은 여기서 바꾸면 돼요 -->
-    <a-plane monitor-screen="hr: 112; sbp: 98; dbp: 58; spo2: 96; rr: 22; bt: 36.8"
+    <a-plane id="monscreen" monitor-screen="hr: 88; sbp: 140; dbp: 80; spo2: 96; rr: 18; bt: 36.8"
              width="1.48" height="1.0" position="0.01 0.105 0.555"></a-plane>
   </a-entity>
   <!-- BP 커프 (환자 왼팔, 모니터와 호스로 연결) — 클릭하면 오른팔로 옮김 (E6) -->
@@ -1142,7 +1147,7 @@ function showMsg(html){
   <a-entity id="jp" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed" position="-0.5 0.6 -2.4"></a-entity>
 
   <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
-  <a-entity id="ivsite" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
+  <a-entity id="ivsite" class="clickable" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
 
   <!-- 수술 부위: 배를 클릭하면 환자복 상의가 열리고 포트 4곳 거즈가 보임. JP 삽입 부위(오른쪽 갈비뼈 아래 바깥쪽) 거즈에 oozing.
        ooze: 얼룩 크기 0(없음) ~ 1(흠뻑 젖음) · open: true = 처음부터 열린 상태 -->
@@ -1217,6 +1222,128 @@ document.getElementById('toggle').onclick = function(){
   pn.style.display = hide ? 'none' : 'block';
   this.textContent = hide ? '조절창 보이기' : '조절창 숨기기';
 };
+</script>
+<script>
+/* ===== Room of Errors 진행: 클릭 → 팝업(오류입니다 / 정상입니다 / 닫기) → 오류면 교정된 모습으로 바뀜 =====
+   처음 화면 = 오류가 있는 상태. 학습자가 [오류입니다]를 고르면 교정 + 중재·근거 표시.
+   정상 항목을 오류로 고르면 위양성(-2점). 10분 안에 8개를 찾는 과제. */
+const LIMIT = 600;
+const ITEMS = {
+  e1:{err:true,w:5,title:'손목밴드',see:'밴드: 나예민 / 등록번호 <b>10234576</b><br>차트 등록번호: <b>10234567</b>',fix:'개방형 질문(성함·생년월일)으로 환자를 확인하고 정확한 밴드로 교체',why:'2가지 이상 식별정보로 환자 확인 (의료기관평가인증원, 2026)'},
+  e2:{err:true,w:10,title:'우상복부 드레싱 · JP 배액',see:'RUQ 드레싱에 선홍색 혈액이 번져 있음(oozing).<br>JP bulb 안 <b>선홍색 배액 약 100 mL</b> (도착 시 혈성 20 mL)',fix:'V/S 재측정 후 담당의에게 SBAR 즉시 보고 → 구두처방 "수액 500 mL bolus" read-back 후 주입',why:'1시간 내 급격한 증가·선홍색 배액은 출혈 시사 → 즉시 보고 (Cleveland Clinic, 2023; MSKCC, 2023)'},
+  e3:{err:true,w:10,title:'JP drain bulb',see:'JP bulb가 둥글게 <b>부풀어 있음</b>(음압 소실). 배액 line이 침상 아래로 늘어져 고정되어 있지 않음.<br>처방: 음압 유지(bulb 압축 상태 유지)',fix:'bulb를 압축한 뒤 마개를 잠그고 line을 환자복에 고정',why:'음압이 없으면 배액이 덜 되어 출혈량이 과소평가됨 (Cleveland Clinic, 2023; MSKCC, 2023)'},
+  e4:{err:true,w:10,title:'인퓨전펌프 (수액 속도)',see:'Plasma 1 L 주입 속도: <b>20 mL/hr</b><br>처방: 80 mL/hr',fix:'처방 속도 80 mL/hr로 교정하고 5 Rights 재확인',why:'5 Rights에 따른 주입 속도 확인 (의료기관평가인증원, 2026)'},
+  e5:{err:true,w:10,title:'PCA line · 3-way',see:'PCA line을 따라가 보니 <b>3-way 손잡이가 PCA 쪽으로 잠겨 있음</b> → 기저유량·bolus가 들어가지 않음.<br>환자: "눌러도 별로 안 나아지는 것 같아요."',fix:'3-way를 돌려 PCA line을 열고 line을 환자까지 추적, 통증(NRS) 재사정',why:'근무 시작 시 PCA 작동·line 개방 확인 (RHW, 2025; Kent CHFT, 2026)'},
+  e6:{err:true,w:5,title:'왼팔 BP cuff',see:'<b>Lt. arm 상완에 BP cuff</b>가 감겨 있음.<br>처방: Lt. arm save (BP·IV·채혈 금지)',fix:'왼팔에서 cuff를 제거하고 Rt. arm으로 옮겨 V/S 측정',why:'ALND 후 위험측 상지 BP·채혈·IV 회피 (Brophy et al., 2022)'},
+  e7:{err:true,w:5,title:'침상 각도',see:'침상머리가 <b>0°(flat)</b>로 누워 있음.<br>처방: semi-Fowler\'s',fix:'리모컨으로 침상머리를 30~45°로 올림',why:'복강경 수술 후 반좌위 (최운정 외, 2017; 서울특별시간호사회, 2023)'},
+  e8:{err:true,w:10,title:'Side rail · Call bell',see:'가까운 쪽 <b>side rail이 내려가 있고</b>, <b>call bell이 바닥에</b> 떨어져 있음.',fix:'side rail을 올리고 call bell을 환자 손이 닿는 곳에 둠',why:'낙상 위험 환경 관리 (의료기관평가인증원, 2026; 병원간호사회, 2019)'},
+  n_iv:{err:false,title:'Rt. arm 말초정맥관',see:'삽입부 깨끗함, 발적·부종 없음, 고정 양호. (12/14 18G 2pm)'},
+  n_dress:{err:false,title:'하복부 드레싱',see:'투관침 부위 드레싱 — 깨끗하고 건조함.'},
+  n_fluid:{err:false,title:'수액',see:'Plasma 1 L — 처방된 수액과 동일.'},
+  n_pca:{err:false,title:'IV PCA 기기',see:'일회용 탄력식 PCA — 잔량 적절, 기기 외관 이상 없음.'},
+  n_rail:{err:false,title:'반대편 Side rail',see:'올라가 있음.'},
+  chart:{info:true,title:'처방 · 차트'}, patient:{info:true,title:'환자 나예민'}
+};
+const ERR_IDS = ['e1','e2','e3','e4','e5','e6','e7','e8'];
+const st = { running:false, t:0, found:{}, fp:{}, fpCount:0, e2At:null, e5At:null, timer:null, msgs:{} };
+const $r = id => document.getElementById(id);
+function fmt(s){ s = Math.max(0, s); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
+function chartHTML(){ return `<table>
+<tr><td>진단</td><td>Acute cholecystitis → Lap. cholecystectomy (금일)</td></tr>
+<tr><td>등록번호</td><td>10234567</td></tr>
+<tr><td>과거력</td><td>뇌경색·HTN·고지혈증 · Lt. MRM with ALND (5년 전)</td></tr>
+<tr><td>처방</td><td>Plasma 1 L <b>80 mL/hr</b><br>IV PCA (탄력식)<br>JP drain <b>음압 유지(bulb 압축)</b><br>EDBC · <b>semi-Fowler's</b> · NPO<br>V/S q1h×2 → q2h×3<br><b>Lt. arm save</b> (BP·IV·채혈 금지)</td></tr>
+<tr><td>검사</td><td>WBC 15.4↑ · Hb 10.0 · PLT 231 · AST/ALT 275/182↑ · CRP 25.2↑</td></tr>
+<tr><td>인계</td><td>도착 시 JP 혈성 20 mL</td></tr></table>`; }
+function openPop(title, body, btns){
+  $r('roeTitle').textContent = title; $r('roeBody').innerHTML = body; const b = $r('roeBtns'); b.innerHTML = '';
+  btns.forEach(([label, cls, fn]) => { const x = document.createElement('button'); x.className = 'rb ' + cls; x.textContent = label; x.onclick = () => fn && fn(); b.appendChild(x); });
+  $r('roePop').classList.remove('hidden');
+}
+function closePop(){ $r('roePop').classList.add('hidden'); }
+window.openItem = function(id){
+  const it = ITEMS[id];
+  if (!st.running) { showMsg('먼저 [시작하기]를 눌러 주세요.'); return; }
+  if (id === 'chart') { openPop(it.title, chartHTML(), [['닫기','r-gray',closePop]]); return; }
+  if (id === 'patient') { openPop(it.title, '"수술부위가 아파요." (찡그린 표정) · 통증 NRS ' + vitals(st.t).nrs + '<br><br>💡 환자 확인은 손목밴드와 개방형 질문으로 하세요.', [['닫기','r-gray',closePop]]); return; }
+  if (it.err && st.found[id] !== undefined) { openPop(it.title, '<span class="ok">✔ 이미 교정함</span><br>' + it.fix, [['닫기','r-gray',closePop]]); return; }
+  if (!it.err && st.fp[id]) { openPop(it.title, it.see + '<br><span class="ng">이미 오류로 보고한 정상 항목입니다.</span>', [['닫기','r-gray',closePop]]); return; }
+  openPop(it.title, '<b>관찰:</b><br>' + it.see, [
+    ['오류입니다','r-red',() => report(id)], ['정상입니다','r-green',closePop], ['닫기','r-gray',closePop]]);
+};
+function report(id){
+  const it = ITEMS[id];
+  if (!it.err) { st.fp[id] = true; st.fpCount++;
+    openPop(it.title, '<span class="ng">✘ 정상 항목입니다 (위양성 -2점)</span><br>' + it.see, [['닫기','r-gray',closePop]]); return; }
+  st.found[id] = st.t; applyFix(id); $r('roeFound').textContent = Object.keys(st.found).length;
+  openPop(it.title, '<span class="ok">✔ 오류 발견 · 교정</span><br><b>중재:</b> ' + it.fix + '<br><b>근거:</b> ' + it.why, [['확인','r-blue',closePop]]);
+  if (Object.keys(st.found).length === 8) setTimeout(() => showMsg('8개 오류를 모두 찾았습니다! [종료 · 결과]를 눌러 확인하세요.'), 400);
+}
+function applyFix(id){   // 교정된 모습으로 바꾸기
+  if (id === 'e2') st.e2At = st.t;
+  if (id === 'e4') document.querySelector('[pump-screen]').setAttribute('pump-screen', 'rate', 80);
+  if (id === 'e5') { st.e5At = st.t; document.querySelector('[iv-set]').setAttribute('iv-set', 'pcaClosed', false); }
+  if (id === 'e6') $r('cuff').setAttribute('bp-cuff', 'side', 'right');
+}
+function vitals(t){   // 오류를 못 찾으면 시간에 따라 나빠지는 활력징후
+  let v = { sbp:140, dbp:80, pr:88, rr:18, nrs:6 };
+  const e5ok = st.e5At !== null;
+  if (t >= 180 && !(e5ok && st.e5At < 180)) v = { sbp:150, dbp:95, pr:98, rr:18, nrs:7 };     // PCA가 안 들어가 통증↑
+  if (e5ok && t >= st.e5At + 60) v.nrs = 4;
+  if (st.e2At === null) {                                                                         // 출혈(E2)을 못 찾으면
+    if (t >= 480) v = { sbp:90, dbp:60, pr:120, rr:28, nrs:v.nrs };
+    else if (t >= 300) v = { sbp:130, dbp:90, pr:110, rr:24, nrs:v.nrs };
+  } else {
+    const r = st.e2At + 60;
+    if (t >= r) v = st.e2At < 480 ? { sbp:136, dbp:88, pr:100, rr:20, nrs:v.nrs } : { sbp:100, dbp:64, pr:108, rr:24, nrs:v.nrs };
+    else if (st.e2At >= 480) v = { sbp:90, dbp:60, pr:120, rr:28, nrs:v.nrs };
+    else if (st.e2At >= 300) v = { sbp:130, dbp:90, pr:110, rr:24, nrs:v.nrs };
+  }
+  return v;
+}
+function roeTick(){
+  st.t++; const t = st.t; $r('roeTimer').textContent = fmt(LIMIT - t);
+  const v = vitals(t); $r('monscreen').setAttribute('monitor-screen', { hr: v.pr, sbp: v.sbp, dbp: v.dbp, rr: v.rr });
+  const once = (k, c, m) => { if (c && !st.msgs[k]) { st.msgs[k] = 1; showMsg(m); } };
+  once('g2', t === 120, '👩 보호자: "너무 아파하는 거 아니에요? 의사는 언제 와요?"');
+  once('p3', t === 180 && st.found.e5 === undefined, '🧑‍⚕️ 환자가 찡그리며 신음합니다. (NRS 7)');
+  once('g5', t === 300 && st.found.e5 === undefined, '👩 보호자가 PCA를 가리킵니다: "저기 이상한 것 같은데 좀 봐주세요."');
+  once('b5', t === 300 && st.found.e2 === undefined, '⚠ 드레싱 oozing과 JP 배액이 늘고 있습니다.');
+  once('b8', t === 480 && st.found.e2 === undefined, '⚠ 환자: "어지러워요…" 창백하고 식은땀이 납니다.');
+  once('f8', t === 480 && st.found.e8 === undefined, '⚠ 환자가 스스로 일어나려 합니다! (낙상 위험)');
+  once('w8', t === 480, '⏱ 2분 남았습니다.');
+  if (t >= LIMIT) roeFinish();
+}
+function roeStart(){
+  $r('intro').classList.add('hidden'); if (st.running) return;
+  st.running = true; $r('roeHud').style.display = 'flex'; st.timer = setInterval(roeTick, 1000);
+  showMsg('📋 위쪽 [처방·차트]로 처방을 먼저 확인하세요.');
+}
+function roeFinish(){
+  if (!st.running) return; st.running = false; clearInterval(st.timer); closePop();
+  let score = 0, bonus = 0; const rows = [];
+  ERR_IDS.forEach(id => { const it = ITEMS[id], ft = st.found[id]; let pts = 0, note = '';
+    if (ft !== undefined) { pts = it.w; if (id === 'e5' && ft > 300) { pts = it.w / 2; note = ' (단서 이후 50%)'; }
+      if (['e2','e3','e5'].includes(id) && ft <= 300) bonus += 2; }
+    score += pts;
+    rows.push(`<tr><td>${id.toUpperCase()}</td><td>${it.title}</td><td>${ft !== undefined ? '<span class="ok">' + fmt(ft) + '</span>' : '<span class="ng">미발견</span>'}</td><td>${pts}/${it.w}${note}</td></tr>`); });
+  const n = Object.keys(st.found).length, rate = (n / 8 * 100).toFixed(1), fp = Math.min(10, st.fpCount * 2);
+  const high = ['e2','e3','e4','e5','e8'].every(i => st.found[i] !== undefined);
+  $r('roeResultBody').innerHTML = `<h2>결과</h2>
+  <table><tr><td>ID</td><td>항목</td><td>발견 시각</td><td>점수</td></tr>${rows.join('')}</table>
+  <h3>요약</h3>
+  오류 식별률: <b>${n}/8 (${rate}%)</b> ${n >= 7 ? '<span class="ok">✔ 7/8 이상</span>' : '<span class="ng">✘ 7/8 미만</span>'}<br>
+  오류 탐지 점수: <b>${score}/65</b> · 가산점(5분 내 E2·E3·E5): +${bonus} · 위양성: -${fp} (${st.fpCount}건)<br>
+  고위험 오류(E2·E3·E4·E5·E8) 모두 탐지: ${high ? '<span class="ok">✔</span>' : '<span class="ng">✘</span>'}<br>
+  소요 시간: ${fmt(Math.min(st.t, LIMIT))}
+  <p style="font-size:13px;color:#666">※ 필수 중재 체크리스트(35점)와 SBAR 평가는 디브리핑에서 관찰자가 평가합니다.</p>
+  <div class="row"><button class="rb r-green" onclick="location.reload()">다시 하기</button></div>`;
+  $r('roeResult').classList.remove('hidden');
+}
+// 정상 항목 클릭 연결 (오류 항목은 각 물건 코드에서 openItem 호출)
+$r('ivsite').addEventListener('click', () => openItem('n_iv'));
+$r('ivbag').addEventListener('click', () => openItem('n_fluid'));
+$r('pca').addEventListener('click', () => openItem('n_pca'));
 </script>
 </body>
 </html>
