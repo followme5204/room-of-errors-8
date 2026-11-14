@@ -802,6 +802,28 @@ function showMsg(html){
   <a-plane width="6.4" height="3" color="#ece5d8" position="0 1.5 1.6" rotation="0 180 0"></a-plane>
   <a-plane width="6.4" height="5.8" color="#f7f8f9" position="0 3 -1.3" rotation="90 0 0"></a-plane>
   <a-plane width="1.4" height="0.9" color="#a9d3f0" position="1.4 1.7 -4.18"></a-plane>
+  <!-- 천장 전등: 매입형 LED 평판등(60×60cm) 5개 — 침대 위 1개 + 방 앞뒤 좌우 4개. 빛나는 면은 조명 영향 없이 밝게 표시 -->
+  <a-entity position="0 2.99 -2.45">
+    <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
+    <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
+  </a-entity>
+  <a-entity position="-1.9 2.99 -3.2">
+    <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
+    <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
+  </a-entity>
+  <a-entity position="1.9 2.99 -3.2">
+    <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
+    <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
+  </a-entity>
+  <a-entity position="-1.9 2.99 0.2">
+    <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
+    <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
+  </a-entity>
+  <a-entity position="1.9 2.99 0.2">
+    <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
+    <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
+  </a-entity>
+
   <!-- 걸레받이(벽 아래 띠, 높이 10cm): 바닥과 벽 경계가 잘 보이게 -->
   <a-box width="6.4" height="0.1" depth="0.015" color="#6e675e" position="0 0.05 -4.19"></a-box>
   <a-box width="5.8" height="0.1" depth="0.015" color="#6e675e" position="-3.19 0.05 -1.3" rotation="0 90 0"></a-box>
