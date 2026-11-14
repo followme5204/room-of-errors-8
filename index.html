@@ -993,9 +993,9 @@ function showMsg(html){
              width="0.36" height="0.27" position="0.235 0.43 0.356"></a-plane>
   </a-entity>
 
-  <!-- 병실 서랍장(키큰장): 폭 50 × 깊이 50 × 높이 210cm · 수액폴대 옆, 침대 머리 쪽 벽에 붙여 세움 · 앞면이 TV 쪽을 바라봄
+  <!-- 병실 서랍장(키큰장): 폭 50 × 깊이 50 × 높이 210cm · 방 왼쪽 구석(침대 머리 쪽 벽 + 왼쪽 옆벽)에 붙여 세움 · 앞면이 TV 쪽을 바라봄
        아래부터: 문 달린 하부장 → 서랍 → 열린 선반 칸 → 문 달린 상부장 -->
-  <a-entity id="cabinet" class="onwall" position="-1.55 0 -3.94" rotation="0 0 0">
+  <a-entity id="cabinet" class="onwall" position="-2.92 0 -3.94" rotation="0 0 0">
     <a-box width="0.018" height="2.1" depth="0.5" position="-0.241 1.05 0" material="color:#d8c49b; roughness:0.7"></a-box>
     <a-box width="0.018" height="2.1" depth="0.5" position="0.241 1.05 0" material="color:#d8c49b; roughness:0.7"></a-box>
     <a-box width="0.464" height="2.1" depth="0.012" position="0 1.05 -0.244" material="color:#c9b385; roughness:0.7"></a-box>
@@ -1013,8 +1013,8 @@ function showMsg(html){
   </a-entity>
 
   <!-- 보호자 침대(접이식, 펼친 모습): 길이 약 185 × 폭 60 × 높이 45cm · 남색 쿠션 3칸 + 아이보리 철제 프레임 + 바퀴
-       병실 서랍장 앞에, 머리 쪽이 서랍장을 향하고 발치가 TV 쪽 -->
-  <a-entity id="gbed" class="onwall" position="-1.55 0 -2.66" rotation="0 0 0">
+       병실 서랍장 앞, 왼쪽 옆벽에 붙임 · 머리 쪽이 서랍장을 향하고 발치가 TV 쪽 -->
+  <a-entity id="gbed" class="onwall" position="-2.88 0 -2.66" rotation="0 0 0">
     <a-box width="0.58" height="0.09" depth="0.6" position="0 0.405 -0.62" material="color:#2d4775; roughness:0.55"></a-box>
     <a-box width="0.58" height="0.09" depth="0.6" position="0 0.405 0" material="color:#2d4775; roughness:0.55"></a-box>
     <a-box width="0.58" height="0.09" depth="0.6" position="0 0.405 0.62" material="color:#2d4775; roughness:0.55"></a-box>
@@ -1157,7 +1157,7 @@ function upd(){
 sel.addEventListener('change', load);
 /* 처음 화면 시점: 보호자 침대 옆(서랍장 앞)에서 침대·출입문 쪽을 내려다봄.
    조절창 아래 '현재 시점' 숫자를 여기에 옮겨 적으면 처음 화면이 그 시점으로 바뀌어요 */
-const START_VIEW = { x: -2.7, z: -2.3, yaw: -100, pitch: -12, h: 1.65 };
+const START_VIEW = { x: -2.3, z: -2.2, yaw: -100, pitch: -12, h: 1.65 };
 function setView(x, z, yaw, pitch, h){    // 시점 바꾸기 (pitch: 위·아래 각도, h: 눈높이)
   const rig = document.getElementById('rig'), lc = document.getElementById('cam').components['look-controls'];
   rig.setAttribute('position', x + ' 0 ' + z); rig.setAttribute('rotation', '0 ' + yaw + ' 0');
