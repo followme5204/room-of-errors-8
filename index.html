@@ -370,11 +370,22 @@ AFRAME.registerComponent('iv-set', {
    환자 기준 오른쪽 = 화면의 -x 방향 (수액폴대 쪽). 환자 자세가 자리 잡으면 bulb를 한 번 자동 배치하고,
    그 뒤에는 조절창으로 bulb를 옮겨도 관이 따라감. */
 AFRAME.registerComponent('jp-drain', {
-  schema: { patient: {type: 'selector'}, bed: {type: 'selector'}, hem: {type: 'number', default: 0.13} },   // hem: 상의 밑단 높이(골반 관절에서 머리 쪽으로 m)
+  schema: { patient: {type: 'selector'}, bed: {type: 'selector'}, hem: {type: 'number', default: 0.13},   // hem: 상의 밑단 높이(골반 관절에서 머리 쪽으로 m)
+            fixed: {default: false} },   // false = E3 오류(부푼 bulb가 침대 밖으로 늘어짐) / true = 교정(압축 bulb, 매트리스 위, line 고정)
   init: function () {
     this.tubeMat = new THREE.MeshStandardMaterial({ color: '#c4404a', roughness: 0.35, transparent: true, opacity: 0.85 });
     this.placed = false; this.still = 0; this.prev = ''; this.last = ''; this.ray = new THREE.Raycaster();
-    this.TUBE_END = new THREE.Vector3(0.15, -0.62, 0.66);   // 모델 안 배액관 끝(연결구) 위치 (모델 기준 좌표)
+    this.END_INF = new THREE.Vector3(0.15, -0.62, 0.66);   // 부푼 bulb 모델(jp_bag.glb) 안 배액관 끝(연결구) 위치 (모델 기준 좌표)
+    this.END_CMP = new THREE.Vector3(0, 0.95, 0);           // 압축 bulb 모델(jp_compressed.glb) 위쪽 마개·연결구 위치
+    this.tape = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.003, 0.028), new THREE.MeshStandardMaterial({ color: '#f4f1ea', roughness: 0.9 }));
+    this.tape.visible = false; this.el.sceneEl.object3D.add(this.tape);   // line을 환자복에 고정한 테이프 (교정 후)
+    this.el.addEventListener('click', () => { if (window.openItem) openItem('e3'); });
+  },
+  update: function (old) {
+    if (old && old.fixed !== undefined && old.fixed !== this.data.fixed) {   // 교정되면 압축 bulb 모델로 바꾸고 다시 배치
+      this.el.setAttribute('gltf-model', this.data.fixed ? 'url(jp_compressed.glb)' : 'url(jp_bag.glb)');
+      this.placed = false; this.still = 0; this.last = ''; this.hemKey = '';
+    }
   },
   bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
   surfaceY: function (obj, x, z, below) {   // (x,z) 위에서 아래로 쏘아 물체 윗면 높이 찾기
@@ -394,12 +405,28 @@ AFRAME.registerComponent('jp-drain', {
     if (!this.placed) {                              // 환자 자세가 멈출 때까지 기다렸다가 한 번만 자동 배치
       this.still = (k === this.prev) ? this.still + 1 : 0; this.prev = k;
       if (this.still < 30) return;
-      const s = 0.08, tx = ruq.x - 0.36, tz = (ruq.z + H.z) / 2;   // 환자 오른쪽 옆구리 옆
-      const top = this.surfaceY(bed, tx, tz, H.y + 0.1);
-      const y = (top !== null ? top : H.y - 0.08);
-      this.el.setAttribute('scale', s + ' ' + s + ' ' + s);
-      this.el.setAttribute('rotation', '0 0 0');
-      this.el.setAttribute('position', { x: +(tx + 0.58 * s).toFixed(3), y: +(y + 0.70 * s).toFixed(3), z: +tz.toFixed(3) });
+      const tz = (ruq.z + H.z) / 2 + 0.05;
+      if (!this.data.fixed) {
+        // E3 오류: 부푼 bulb가 침대 오른쪽 가장자리 밖으로 늘어져 매달림 (line 고정 안 됨)
+        let edge = BED.x - 0.45;
+        for (let d = 0.25; d <= 0.8; d += 0.02) {
+          const y = this.surfaceY(bed, BED.x - d, tz, BED.top + 0.1);
+          if (y === null || y < BED.top - 0.06) { edge = BED.x - d + 0.02; break; }
+        }
+        this.edge = new V(edge, BED.top + 0.012, tz);
+        const s = 0.08, o = this.el.object3D;
+        o.scale.set(s, s, s); o.rotation.set(0, 0, Math.PI / 2); o.position.set(0, 0, 0); o.updateMatrixWorld(true);
+        const off = o.localToWorld(this.END_INF.clone()), pos = new V(edge - 0.05, BED.top - 0.18, tz).sub(off);
+        this.el.setAttribute('scale', s + ' ' + s + ' ' + s);
+        this.el.setAttribute('rotation', '0 0 90');
+        this.el.setAttribute('position', { x: +pos.x.toFixed(3), y: +pos.y.toFixed(3), z: +pos.z.toFixed(3) });
+      } else {
+        // 교정: 압축 bulb를 매트리스 위 환자 오른쪽 옆구리 옆에 눕혀 둠 (마개가 머리 쪽)
+        const tx = ruq.x - 0.30, top = this.surfaceY(bed, tx, tz + 0.03, BED.top + 0.1);
+        this.el.setAttribute('scale', '0.047 0.047 0.025');
+        this.el.setAttribute('rotation', '-90 0 0');
+        this.el.setAttribute('position', { x: +tx.toFixed(3), y: +((top !== null ? top : BED.top) + 0.0125).toFixed(3), z: +(tz + 0.03).toFixed(3) });
+      }
       this.placed = true; return;
     }
     // 삽입 부위: 오른쪽 상복부 옆쪽, 몸 표면
@@ -410,7 +437,7 @@ AFRAME.registerComponent('jp-drain', {
     }
     const P = this.P;
     this.el.object3D.updateMatrixWorld(true);
-    const E = this.el.object3D.localToWorld(this.TUBE_END.clone());
+    const E = this.el.object3D.localToWorld((this.data.fixed ? this.END_CMP : this.END_INF).clone());
     const wnd = document.getElementById('abdwound'), open = !!(wnd && wnd.getAttribute('abd-wound') && wnd.getAttribute('abd-wound').open);
     const key = [P, E].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|') + open;
     if (key === this.last) return; this.last = key;
@@ -421,7 +448,7 @@ AFRAME.registerComponent('jp-drain', {
     if (open) {
       const sy = (dx) => { const y = this.surfaceY(pt, ruq.x - dx, ruq.z, ruq.y + 0.4); return y !== null ? y : P.y; };
       if (this.openKey !== k) { this.openKey = k; this.oy1 = sy(0.15); this.oy2 = sy(0.18); }
-      pts = [P, new V(ruq.x - 0.15, this.oy1 + 0.008, ruq.z), new V(ruq.x - 0.18, Math.max(this.oy2, B2.y) + 0.004, ruq.z + 0.015), B2, E];
+      pts = [P, new V(ruq.x - 0.15, this.oy1 + 0.008, ruq.z), new V(ruq.x - 0.18, Math.max(this.oy2, B2.y) + 0.004, ruq.z + 0.015), B2, ...(!this.data.fixed && this.edge ? [this.edge] : []), E];
     } else {
       // 상의 속: 삽입 부위에서 몸 표면 바로 아래(1.5cm)를 따라 상의 맨 밑단(허리, 환자 오른쪽)까지 → 밑단에서 빠져나와 옆구리로 내려감
       if (this.hemKey !== k + this.data.hem) {
@@ -443,7 +470,10 @@ AFRAME.registerComponent('jp-drain', {
         if (!this.outer.length) this.outer.push(new V(hx, (sy(hx, hz) || P.y) + 0.007, hz));
         this.side = new V(lx - 0.05, BED.top + 0.02, lz + 0.01);
       }
-      pts = [P, ...this.inner, ...this.outer, this.side, E];
+      pts = this.data.fixed || !this.edge ? [P, ...this.inner, ...this.outer, this.side, E]
+                                          : [P, ...this.inner, ...this.outer, this.side, this.edge, E];   // 오류: 매트리스 가장자리 넘어 아래로 늘어짐
+      const tp = this.outer[Math.min(1, this.outer.length - 1)];
+      this.tape.visible = !!this.data.fixed; if (tp) this.tape.position.set(tp.x, tp.y + 0.002, tp.z);
     }
     const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, 0.0035, 6, false);
     if (this.tube) { this.tube.geometry.dispose(); this.tube.geometry = geo; }
@@ -1153,7 +1183,7 @@ function showMsg(html){
   <!-- BP 커프 (환자 왼팔, 모니터와 호스로 연결) — 클릭하면 오른팔로 옮김 (E6) -->
   <!-- JP 배액관: 환자 오른쪽 상복부에서 나와 상의 속을 지나 상의 맨 밑단에서 빠져나와 bulb로 (자리는 자동으로 잡힘)
        hem: 상의 밑단 위치(골반에서 머리 쪽으로 m). 관이 바지에서 나오면 키우고(0.16), 상의 중간에서 나오면 줄이세요(0.10) -->
-  <a-entity id="jp" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed; hem: 0.13" position="-0.5 0.6 -2.4"></a-entity>
+  <a-entity id="jp" class="clickable" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed; hem: 0.13" position="-0.5 0.6 -2.4"></a-entity>
 
   <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
   <a-entity id="ivsite" class="clickable" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
@@ -1293,6 +1323,7 @@ function applyFix(id){   // 교정된 모습으로 바꾸기
   if (id === 'e4') document.querySelector('[pump-screen]').setAttribute('pump-screen', 'rate', 80);
   if (id === 'e5') { st.e5At = st.t; document.querySelector('[iv-set]').setAttribute('iv-set', 'pcaClosed', false); }
   if (id === 'e6') $r('cuff').setAttribute('bp-cuff', 'side', 'right');
+  if (id === 'e3') $r('jp').setAttribute('jp-drain', 'fixed', true);
 }
 function vitals(t){   // 오류를 못 찾으면 시간에 따라 나빠지는 활력징후
   let v = { sbp:140, dbp:80, pr:88, rr:18, nrs:6 };
