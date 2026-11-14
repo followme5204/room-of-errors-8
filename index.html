@@ -845,6 +845,7 @@ function showMsg(html){
       <option value="cabinet">서랍장</option>
       <option value="gbed">보호자 침대</option>
       <option value="wastebox">의료폐기물 용기</option>
+      <option value="tcart">이동식 카트</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
   <label>앞·뒤 <span class="v" id="vz"></span><input type="range" id="pz" min="-4" max="-1" step="0.01"></label>
@@ -1082,7 +1083,9 @@ function showMsg(html){
     <a-plane width="1.15" height="0.08" position="0 1.984 0.05" rotation="90 0 0" material="shader:flat; color:#fff6e6"></a-plane>
   </a-entity>
 
-  <!-- 이동식 카트(처치 카트): Meshy glb(treatment_cart.glb)로 다시 넣을 자리 — 환자 모니터 뒤편, 침대 머리 쪽 벽(창문 아래) -->
+  <!-- 이동식 카트(처치 카트, treatment_cart.glb): 세면대와 같은 오른쪽 벽, 환자 모니터와 같은 줄에 벽에 붙임 ·
+       서랍이 환자와 모니터 쪽을 바라봄. 몸체 높이 약 95cm (수액걸대 포함 약 1.45m) -->
+  <a-entity id="tcart" gltf-model="url(treatment_cart.glb)" scale="0.76 0.76 0.76" position="2.88 0.724 -2.8" rotation="0 -90 0"></a-entity>
 
   <!-- 환자 모니터: 환자 왼쪽(침대 머리 쪽 옆) 바퀴 달린 스탠드 위 · 화면이 침대 발치·폴대 쪽을 향함 -->
   <a-entity id="mstand" gltf-model="url(monitor_stand.glb)" scale="0.58 0.58 0.58" position="0.95 0.552 -3.05" rotation="0 -25 0"></a-entity>
