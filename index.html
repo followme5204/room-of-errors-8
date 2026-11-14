@@ -423,7 +423,7 @@ AFRAME.registerComponent('jp-drain', {
     const wnd = document.getElementById('abdwound'), open = !!(wnd && wnd.getAttribute('abd-wound') && wnd.getAttribute('abd-wound').open);
     const key = [P, E].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|') + open;
     if (key === this.last) return; this.last = key;
-    // 배액관: 삽입 부위 → 환자복 상의 속(몸 안쪽)으로 옆구리 아래까지 → 옆구리 아래 상의 밑에서 나와 → 매트리스 위 → bulb 연결구
+    // 배액관: 삽입 부위 → 환자복 상의 속으로 → 상의 맨 밑단(허리)에서 빠져나와 → 옆구리 → 매트리스 위 → bulb 연결구
     //   (상의를 열었을 때는 거즈 밑에서 나와 피부 위를 지나 옆구리로 내려감)
     const B2 = new V(ruq.x - 0.19, BED.top + 0.025, ruq.z + 0.03);           // 옆구리 아래, 상의 밑에서 나오는 곳
     let pts;
@@ -432,7 +432,19 @@ AFRAME.registerComponent('jp-drain', {
       if (this.openKey !== k) { this.openKey = k; this.oy1 = sy(0.15); this.oy2 = sy(0.18); }
       pts = [P, new V(ruq.x - 0.15, this.oy1 + 0.008, ruq.z), new V(ruq.x - 0.18, Math.max(this.oy2, B2.y) + 0.004, ruq.z + 0.015), B2, E];
     } else {
-      pts = [P, new V(ruq.x - 0.09, P.y - 0.07, ruq.z), B2, E];
+      // 상의 속: 삽입 부위에서 몸 표면 바로 아래(1.5cm)를 따라 상의 맨 밑단(허리, 환자 오른쪽)까지 → 밑단에서 빠져나와 옆구리로 내려감
+      if (this.hemKey !== k) {
+        this.hemKey = k;
+        const hx = H.x - 0.11, hz = H.z - 0.03;                          // 상의 맨 밑단 위치 (골반 바로 위, 오른쪽)
+        const sy = (xx, zz) => { const y = this.surfaceY(pt, xx, zz, ruq.y + 0.4); return y !== null ? y : P.y - 0.03; };
+        this.inner = [0.3, 0.6, 0.85].map(f => {
+          const xx = P.x + (hx - P.x) * f, zz = P.z + (hz - P.z) * f;
+          return new V(xx, sy(xx, zz) - 0.015, zz);
+        });
+        this.hemOut = new V(hx - 0.01, sy(hx, hz + 0.02) + 0.006, hz + 0.025);   // 밑단 밖으로 나온 곳
+        this.side = new V(H.x - 0.2, BED.top + 0.04, H.z);                      // 옆구리를 타고 매트리스로
+      }
+      pts = [P, ...this.inner, this.hemOut, this.side, E];
     }
     const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, 0.0035, 6, false);
     if (this.tube) { this.tube.geometry.dispose(); this.tube.geometry = geo; }
