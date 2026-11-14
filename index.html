@@ -498,6 +498,157 @@ AFRAME.registerComponent('pump-screen', {
     if (mesh && mesh.material !== this.mat) mesh.material = this.mat;
   }
 });
+/* 수술 부위(복부): 배를 클릭하면 환자복 상의가 양옆으로 젖혀지고, 복강경 담낭절제술 포트 4곳의 거즈가 보임.
+   JP가 나오는 오른쪽 갈비뼈 아래(바깥쪽) 거즈에 혈성 삼출(oozing) 얼룩 · JP 관은 이 거즈 밑에서 나옴.
+   ooze: 얼룩 크기 0(없음) ~ 1(거즈가 흠뻑 젖음) */
+AFRAME.registerComponent('abd-wound', {
+  schema: { patient: {type: 'selector'}, open: {default: false}, ooze: {type: 'number', default: 0.6} },
+  init: function () {
+    const T = THREE;
+    this.root = new T.Group();                 // 클릭 영역 + 열린 모습 전체
+    this.opened = new T.Group(); this.root.add(this.opened);
+    this.el.setObject3D('mesh', this.root);
+    this.skinMat = new T.MeshStandardMaterial({ color: '#e9b8a6', roughness: 0.75 });
+    this.gownMat = new T.MeshStandardMaterial({ color: '#b6d0fe', roughness: 0.9, side: T.DoubleSide });
+    this.hitMat = new T.MeshBasicMaterial({ visible: false, side: T.DoubleSide });
+    this.still = 0; this.prev = ''; this.built = '';
+    this.el.addEventListener('click', () => {
+      const o = !this.data.open;
+      this.el.setAttribute('abd-wound', 'open', o);
+      showMsg(o ? '환자복 상의를 열었어요.<br>수술 부위(포트 4곳) 거즈와 JP 삽입 부위를 관찰하세요.'
+                : '환자복 상의를 다시 덮었어요.');
+    });
+  },
+  update: function (old) {
+    this.opened.visible = !!this.data.open;
+    if (old && old.ooze !== undefined && old.ooze !== this.data.ooze) this.built = '';   // 얼룩 크기가 바뀌면 다시 그림
+  },
+  bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
+  tick: function () {
+    const pt = this.data.patient.getObject3D('mesh'); if (!pt) return;
+    const H = this.bone(pt, 'Hips'), A = this.bone(pt, 'Spine'), B = this.bone(pt, 'Spine1'), C = this.bone(pt, 'Spine2');
+    if (!H || !A || !B || !C) return;
+    const V = THREE.Vector3, h = H.getWorldPosition(new V()), c = C.getWorldPosition(new V());
+    const key = [h, c].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
+    this.still = (key === this.prev) ? this.still + 1 : 0; this.prev = key;
+    if (this.still < 30 || key === this.built) return;      // 환자 자세가 멈춘 뒤에 한 번만 만듦 (자세가 바뀌면 다시)
+    this.built = key; this.build(pt, H, A, B, C);
+  },
+  build: function (pt, H, A, B, C) {
+    const T = THREE, V = T.Vector3, up = new V(0, 1, 0);
+    pt.updateMatrixWorld(true);
+    const h = H.getWorldPosition(new V()), a = A.getWorldPosition(new V()), b = B.getWorldPosition(new V()), c = C.getWorldPosition(new V());
+    // 몸 기준 방향: u = 발→머리, r = 환자의 오른쪽
+    const u = c.clone().sub(h); u.y = 0; u.normalize();
+    const r = new V().crossVectors(up, u).normalize();
+    const S = p => p.clone().sub(h).dot(u), Tt = p => p.clone().sub(h).dot(r);
+    const W = (s, t, y) => h.clone().addScaledVector(u, s).addScaledVector(r, t).setY(y);
+    // ① 몸통 표면 높이 지도: 몸통 뼈(Hips·Spine)에 붙은 점들만 모음 (팔·손이 배 위에 있어도 무시)
+    let mesh = null; pt.traverse(o => { if (o.isSkinnedMesh && !mesh) mesh = o; });
+    if (!mesh) return;
+    const g = mesh.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, bones = mesh.skeleton.bones;
+    const CELL = 0.01, grid = new Map(), v = new V();
+    for (let i = 0; i < g.attributes.position.count; i++) {
+      let bi = 0, bw = -1;
+      for (let k = 0; k < 4; k++) { const w = sw.getComponent(i, k); if (w > bw) { bw = w; bi = si.getComponent(i, k); } }
+      const nm = bones[bi] ? bones[bi].name : '';
+      if (!/Spine|Hips/.test(nm)) continue;
+      mesh.getVertexPosition(i, v); v.applyMatrix4(mesh.matrixWorld);
+      const s = S(v), t = Tt(v); if (Math.abs(t) > 0.3 || s < -0.2 || s > 0.5) continue;
+      const kk = Math.floor(s / CELL) + ',' + Math.floor(t / CELL);
+      if (!grid.has(kk) || grid.get(kk) < v.y) grid.set(kk, v.y);
+    }
+    const base = (a.y + b.y) / 2 + 0.1;
+    const hf = (s, t) => {                    // (s, t) 위치의 몸 표면 높이
+      const i0 = Math.floor(s / CELL), j0 = Math.floor(t / CELL);
+      for (let R = 1; R <= 3; R++) {
+        let m = -1e9;
+        for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) { const y = grid.get((i0 + i) + ',' + (j0 + j)); if (y !== undefined && y > m) m = y; }
+        if (m > -1e9) return m;
+      }
+      return base;
+    };
+    // 판 하나(거즈·피부·천)를 몸 곡면에 맞춰 만듦: 가운데 (s0,t0), 크기 L(머리 방향)×Wd(옆 방향)
+    const sheet = (s0, t0, L, Wd, lift, mat, n, bump) => {
+      n = n || 14; const N = (n + 1) * (n + 1), P = new Float32Array(N * 3), UV = new Float32Array(N * 2), idx = [];
+      const hs = []; for (let i = 0; i <= n; i++) { hs[i] = []; for (let j = 0; j <= n; j++) hs[i][j] = hf(s0 + (i / n - 0.5) * L, t0 + (j / n - 0.5) * Wd); }
+      for (let pass = 0; pass < 2; pass++)     // 울퉁불퉁하지 않게 살짝 매끄럽게
+        for (let i = 1; i < n; i++) for (let j = 1; j < n; j++) hs[i][j] = (hs[i][j] * 4 + hs[i - 1][j] + hs[i + 1][j] + hs[i][j - 1] + hs[i][j + 1]) / 8;
+      for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+        const s = s0 + (i / n - 0.5) * L, t = t0 + (j / n - 0.5) * Wd, q = i * (n + 1) + j;
+        const y = hs[i][j] + lift + (bump ? bump(i / n, j / n) : 0), p = W(s, t, y);
+        P.set([p.x, p.y, p.z], q * 3); UV.set([j / n, i / n], q * 2);
+        if (i < n && j < n) idx.push(q, q + n + 1, q + 1, q + 1, q + n + 1, q + n + 2);
+      }
+      const geo = new T.BufferGeometry();
+      geo.setAttribute('position', new T.BufferAttribute(P, 3)); geo.setAttribute('uv', new T.BufferAttribute(UV, 2));
+      geo.setIndex(idx); geo.computeVertexNormals();
+      return new T.Mesh(geo, mat);
+    };
+    // ② 위치 잡기 (단위 m). JP 삽입 부위는 jp-drain과 똑같이 계산해서 관이 거즈 밑으로 들어가게 함
+    const ruq = a.clone().lerp(b, 0.6), jpW = new V(ruq.x - 0.11, 0, ruq.z);
+    const sA = S(a), sB = S(b), sJ = S(jpW), tJ = Tt(jpW);
+    const umb = { s: sA * 0.35, t: 0 };                 // 배꼽 포트
+    const epi = { s: sB, t: -0.008 };                   // 명치 아래 포트
+    const mcl = { s: sJ + 0.035, t: tJ - 0.07 };        // 오른쪽 갈비뼈 아래(안쪽) 포트
+    const jp  = { s: sJ, t: tJ - 0.005 };               // 오른쪽 갈비뼈 아래(바깥쪽) 포트 = JP 삽입 부위
+    // 기존 것 지우고 새로 만들기
+    this.root.children.filter(o => o !== this.opened).forEach(o => this.root.remove(o));
+    this.opened.clear();
+    // ③ 열린 부분: 피부 + 사방의 환자복 천
+    const s0 = umb.s - 0.05, s1 = epi.s + 0.045, tL = -0.1, tR = tJ + 0.065;
+    const sm = (s0 + s1) / 2, tm = (tL + tR) / 2, Ls = s1 - s0, Wt = tR - tL;
+    this.opened.add(sheet(sm, tm, Ls, Wt, 0.004, this.skinMat, 20));
+    const roll = (x, y) => 0.012 * Math.sin(Math.PI * y);          // 말려서 접힌 천의 볼록함
+    this.opened.add(sheet(sm, tL - 0.03, Ls + 0.06, 0.06, 0.008, this.gownMat, 10, roll));   // 환자 왼쪽으로 젖힌 상의
+    this.opened.add(sheet(sm, tR + 0.03, Ls + 0.06, 0.06, 0.008, this.gownMat, 10, roll));   // 환자 오른쪽으로 젖힌 상의
+    this.opened.add(sheet(s1 + 0.02, tm, 0.04, Wt + 0.12, 0.008, this.gownMat, 10));         // 위쪽(가슴): 닫혀 있는 상의
+    this.opened.add(sheet(s0 - 0.02, tm, 0.04, Wt + 0.12, 0.008, this.gownMat, 10));         // 아래쪽: 하의 허리
+    // ④ 거즈 4개 (테이프 포함). JP 거즈에만 얼룩
+    const pad = (o, size, ooze) => {
+      const tex = this.gauzeTex(ooze), m = new T.MeshStandardMaterial({ map: tex, roughness: 0.95, alphaTest: 0.1, side: T.DoubleSide });
+      const k = 1.35, thick = (x, y) => 0.004 * Math.sin(Math.PI * Math.min(1, Math.max(0, (x - 0.13) / 0.74))) * Math.sin(Math.PI * Math.min(1, Math.max(0, (y - 0.13) / 0.74)));
+      this.opened.add(sheet(o.s, o.t, size * k, size * k, 0.008, m, 14, thick));
+    };
+    pad(umb, 0.06, 0); pad(epi, 0.05, 0); pad(mcl, 0.045, 0); pad(jp, 0.075, this.data.ooze);
+    // ⑤ 클릭 영역: 배 위를 덮는 보이지 않는 판 (닫혀 있을 때도 클릭 가능)
+    this.root.add(sheet(sm, tm, Ls, Wt, 0.025, this.hitMat, 6));
+    this.opened.visible = !!this.data.open;
+  },
+  gauzeTex: function (ooze) {          // 거즈 그림: 가운데 거즈 + 위아래 테이프 + (있으면) 혈성 삼출 얼룩
+    const cv = document.createElement('canvas'); cv.width = cv.height = 512;
+    const g = cv.getContext('2d'), m = 512 * (0.35 / 1.35) / 2, x0 = m, x1 = 512 - m;   // 거즈 영역 (테이프 밖은 투명)
+    g.clearRect(0, 0, 512, 512);
+    g.fillStyle = 'rgba(236,228,206,0.95)'; g.fillRect(0, 70, 512, 70); g.fillRect(0, 372, 512, 70);   // 테이프
+    g.fillStyle = '#f5f3ee'; g.fillRect(x0, x0, x1 - x0, x1 - x0);
+    g.strokeStyle = 'rgba(120,110,95,0.10)'; g.lineWidth = 1;                                          // 거즈 올
+    for (let p = x0; p <= x1; p += 7) { g.beginPath(); g.moveTo(p, x0); g.lineTo(p, x1); g.stroke(); g.beginPath(); g.moveTo(x0, p); g.lineTo(x1, p); g.stroke(); }
+    g.strokeStyle = 'rgba(120,110,95,0.18)'; g.lineWidth = 2;                                          // 접힌 선
+    [0.33, 0.66].forEach(f => { const q = x0 + (x1 - x0) * f; g.beginPath(); g.moveTo(q, x0); g.lineTo(q, x1); g.stroke(); });
+    g.fillStyle = 'rgba(236,228,206,0.85)'; g.fillRect(x0, 70, x1 - x0, 70); g.fillRect(x0, 372, x1 - x0, 70);   // 거즈 위 테이프
+    if (ooze > 0) {
+      const cx = x0 + (x1 - x0) * 0.62, cy = 256, R = (x1 - x0) * (0.12 + 0.3 * Math.min(1, ooze));    // 바깥쪽(JP 쪽)으로 치우친 얼룩
+      const blob = (rr, fill) => {
+        g.beginPath();
+        for (let k = 0; k <= 64; k++) {
+          const th = k / 64 * Math.PI * 2, n = 1 + 0.16 * Math.sin(3 * th + 1) + 0.1 * Math.sin(5 * th + 2) + 0.06 * Math.sin(9 * th);
+          const px = cx + Math.cos(th) * rr * n * 1.1, py = cy + Math.sin(th) * rr * n * 0.9;
+          k ? g.lineTo(px, py) : g.moveTo(px, py);
+        }
+        g.closePath(); g.fillStyle = fill; g.fill();
+      };
+      g.save(); g.beginPath(); g.rect(x0, x0, x1 - x0, x1 - x0); g.clip();        // 거즈 밖으로 번지지 않게
+      blob(R * 1.25, 'rgba(205,140,120,0.35)');                                      // 가장자리 연한 장액성 번짐
+      const gr = g.createRadialGradient(cx, cy, R * 0.1, cx, cy, R);
+      gr.addColorStop(0, 'rgba(95,20,16,0.95)'); gr.addColorStop(0.55, 'rgba(140,38,30,0.88)'); gr.addColorStop(1, 'rgba(178,80,64,0.7)');
+      blob(R, gr);
+      g.restore();
+    }
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    return tex;
+  }
+});
+
 function showMsg(html){
   const m = document.getElementById('toast'); m.innerHTML = html; m.style.display = 'block';
   clearTimeout(showMsg.t); showMsg.t = setTimeout(() => m.style.display = 'none', 6000);
@@ -640,6 +791,10 @@ function showMsg(html){
 
   <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
   <a-entity id="ivsite" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
+
+  <!-- 수술 부위: 배를 클릭하면 환자복 상의가 열리고 포트 4곳 거즈가 보임. JP 삽입 부위(오른쪽 갈비뼈 아래 바깥쪽) 거즈에 oozing.
+       ooze: 얼룩 크기 0(없음) ~ 1(흠뻑 젖음) · open: true = 처음부터 열린 상태 -->
+  <a-entity id="abdwound" class="clickable" abd-wound="patient: #patient; ooze: 0.6; open: false"></a-entity>
 
   <a-entity id="cuff" class="clickable" bp-cuff="patient: #patient; monitor: #monitor; side: left"></a-entity>
 
