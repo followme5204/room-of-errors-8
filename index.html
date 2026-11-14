@@ -773,6 +773,7 @@ function showMsg(html){
       <option value="jp">JP 배액 bulb</option>
       <option value="cabinet">서랍장</option>
       <option value="gbed">보호자 침대</option>
+      <option value="cart">이동식 카트</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
   <label>앞·뒤 <span class="v" id="vz"></span><input type="range" id="pz" min="-4" max="-1" step="0.01"></label>
@@ -940,6 +941,87 @@ function showMsg(html){
     <a-cylinder radius="0.012" height="0.29" position="0.27 0.21 0.88" material="color:#e6e0cc; metalness:0.3; roughness:0.4"></a-cylinder>
     <a-cylinder radius="0.028" height="0.022" position="0.27 0.03 0.88" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
     <a-box width="0.03" height="0.03" depth="0.03" position="0.27 0.06 0.88" material="color:#555; metalness:0.5"></a-box>
+  </a-entity>
+
+  <!-- 환자 머리 위 벽: 의료가스 패널(Bed head unit) — 산소(초록)·공기(노랑)·흡인(검정) 출구, 콘센트,
+       산소 유량계 + 가습병, 흡인 조절기 + 흡인병. 그 위에 병상 조명등(긴 간접등).
+       창문(오른쪽)과 겹치지 않게 패널을 환자 오른쪽으로 조금 치우쳐 둠 -->
+  <a-entity id="headunit" position="-0.25 0 -4.16">
+    <a-box width="1.7" height="0.24" depth="0.07" position="0 1.36 0" material="color:#e6c4b0; roughness:0.6"></a-box>
+    <a-box width="1.7" height="0.035" depth="0.072" position="0 1.47 0" material="color:#f3ddd0; roughness:0.6"></a-box>
+    <a-box width="0.075" height="0.075" depth="0.01" position="-0.12 1.35 0.04" material="color:#f4f4f2"></a-box>
+    <a-cylinder radius="0.022" height="0.012" position="-0.12 1.35 0.046" rotation="90 0 0" material="color:#2e8b57"></a-cylinder>
+    <a-cylinder radius="0.009" height="0.014" position="-0.12 1.35 0.048" rotation="90 0 0" material="color:#9aa0a6; metalness:0.7"></a-cylinder>
+    <a-text value="O2" align="center" color="#333" width="0.35" position="-0.12 1.405 0.046"></a-text>
+    <a-box width="0.075" height="0.075" depth="0.01" position="-0.03 1.35 0.04" material="color:#f4f4f2"></a-box>
+    <a-cylinder radius="0.022" height="0.012" position="-0.03 1.35 0.046" rotation="90 0 0" material="color:#e5c21c"></a-cylinder>
+    <a-cylinder radius="0.009" height="0.014" position="-0.03 1.35 0.048" rotation="90 0 0" material="color:#9aa0a6; metalness:0.7"></a-cylinder>
+    <a-text value="AIR" align="center" color="#333" width="0.35" position="-0.03 1.405 0.046"></a-text>
+    <a-box width="0.075" height="0.075" depth="0.01" position="0.3 1.35 0.04" material="color:#f4f4f2"></a-box>
+    <a-cylinder radius="0.022" height="0.012" position="0.3 1.35 0.046" rotation="90 0 0" material="color:#222222"></a-cylinder>
+    <a-cylinder radius="0.009" height="0.014" position="0.3 1.35 0.048" rotation="90 0 0" material="color:#9aa0a6; metalness:0.7"></a-cylinder>
+    <a-text value="VAC" align="center" color="#333" width="0.35" position="0.3 1.405 0.046"></a-text>
+    <a-box width="0.07" height="0.07" depth="0.01" position="-0.7 1.35 0.04" material="color:#fafaf8"></a-box>
+    <a-cylinder radius="0.018" height="0.004" position="-0.7 1.35 0.046" rotation="90 0 0" material="color:#e2e2df"></a-cylinder>
+    <a-box width="0.07" height="0.07" depth="0.01" position="-0.6 1.35 0.04" material="color:#fafaf8"></a-box>
+    <a-cylinder radius="0.018" height="0.004" position="-0.6 1.35 0.046" rotation="90 0 0" material="color:#e2e2df"></a-cylinder>
+    <a-box width="0.07" height="0.07" depth="0.01" position="0.6 1.35 0.04" material="color:#fafaf8"></a-box>
+    <a-cylinder radius="0.018" height="0.004" position="0.6 1.35 0.046" rotation="90 0 0" material="color:#e2e2df"></a-cylinder>
+    <a-box width="0.07" height="0.07" depth="0.01" position="0.7 1.35 0.04" material="color:#fafaf8"></a-box>
+    <a-cylinder radius="0.018" height="0.004" position="0.7 1.35 0.046" rotation="90 0 0" material="color:#e2e2df"></a-cylinder>
+    <a-box width="0.06" height="0.04" depth="0.012" position="-0.42 1.35 0.04" material="color:#fafaf8"></a-box>
+    <a-cylinder radius="0.008" height="0.04" position="-0.12 1.315 0.06" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-cylinder>
+    <a-cylinder radius="0.02" height="0.13" position="-0.12 1.23 0.075" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-cylinder>
+    <a-cylinder radius="0.012" height="0.1" position="-0.12 1.235 0.096" material="color:#e9f4ef; opacity:0.7; transparent:true"></a-cylinder>
+    <a-sphere radius="0.006" position="-0.12 1.255 0.097" material="color:#2e8b57"></a-sphere>
+    <a-cylinder radius="0.016" height="0.02" position="-0.12 1.305 0.075" rotation="0 0 90" material="color:#2e8b57"></a-cylinder>
+    <a-cylinder radius="0.038" height="0.12" position="-0.12 1.1 0.075" material="color:#cfe7f3; opacity:0.55; transparent:true"></a-cylinder>
+    <a-cylinder radius="0.036" height="0.07" position="-0.12 1.075 0.075" material="color:#9fd0ea; opacity:0.6; transparent:true"></a-cylinder>
+    <a-cylinder radius="0.04" height="0.02" position="-0.12 1.165 0.075" material="color:#f2f2f2"></a-cylinder>
+    <a-cylinder radius="0.008" height="0.04" position="0.3 1.315 0.06" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-cylinder>
+    <a-box width="0.07" height="0.07" depth="0.05" position="0.3 1.26 0.07" material="color:#e8e8e6"></a-box>
+    <a-cylinder radius="0.03" height="0.01" position="0.3 1.265 0.098" rotation="90 0 0" material="color:#ffffff"></a-cylinder>
+    <a-cylinder radius="0.031" height="0.006" position="0.3 1.265 0.096" rotation="90 0 0" material="color:#222"></a-cylinder>
+    <a-box width="0.002" height="0.022" depth="0.002" position="0.305 1.272 0.104" rotation="0 0 -30" material="color:#c0392b"></a-box>
+    <a-box width="0.1" height="0.012" depth="0.08" position="0.3 1.205 0.08" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-cylinder radius="0.06" height="0.2" position="0.3 1.09 0.09" material="color:#e3f0f7; opacity:0.45; transparent:true"></a-cylinder>
+    <a-cylinder radius="0.063" height="0.025" position="0.3 1.19 0.09" material="color:#3a6fb0"></a-cylinder>
+    <a-box width="1.25" height="0.07" depth="0.13" position="0 2.02 0.04" material="color:#f3ddd0; roughness:0.6"></a-box>
+    <a-box width="1.25" height="0.02" depth="0.03" position="0 2.065 0.11" material="color:#e6c4b0"></a-box>
+    <a-plane width="1.15" height="0.08" position="0 1.984 0.05" rotation="90 0 0" material="shader:flat; color:#fff6e6"></a-plane>
+  </a-entity>
+
+  <!-- 이동식 카트(서랍 4단): 환자 모니터 뒤편, 침대 머리 쪽 벽(창문 아래)에 붙여 둠 · 서랍이 방 안쪽을 향함 -->
+  <a-entity id="cart" position="1.65 0 -3.92" rotation="0 0 0">
+    <a-cylinder radius="0.04" height="0.025" position="-0.27 0.04 -0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
+    <a-box width="0.03" height="0.05" depth="0.03" position="-0.27 0.09 -0.19" material="color:#555; metalness:0.5"></a-box>
+    <a-cylinder radius="0.04" height="0.025" position="-0.27 0.04 0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
+    <a-box width="0.03" height="0.05" depth="0.03" position="-0.27 0.09 0.19" material="color:#555; metalness:0.5"></a-box>
+    <a-cylinder radius="0.04" height="0.025" position="0.27 0.04 -0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
+    <a-box width="0.03" height="0.05" depth="0.03" position="0.27 0.09 -0.19" material="color:#555; metalness:0.5"></a-box>
+    <a-cylinder radius="0.04" height="0.025" position="0.27 0.04 0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
+    <a-box width="0.03" height="0.05" depth="0.03" position="0.27 0.09 0.19" material="color:#555; metalness:0.5"></a-box>
+    <a-box width="0.6" height="0.03" depth="0.44" position="0 0.13 0" material="color:#4b4f55; metalness:0.3"></a-box>
+    <a-box width="0.56" height="0.82" depth="0.42" position="0 0.555 0" material="color:#8e9297; roughness:0.6"></a-box>
+    <a-box width="0.53" height="0.128" depth="0.012" position="0 0.89 0.216" material="color:#a6a9ad; roughness:0.5"></a-box>
+    <a-box width="0.14" height="0.018" depth="0.016" position="0 0.925 0.228" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-box width="0.53" height="0.158" depth="0.012" position="0 0.73 0.216" material="color:#a6a9ad; roughness:0.5"></a-box>
+    <a-box width="0.14" height="0.018" depth="0.016" position="0 0.780 0.228" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-box width="0.53" height="0.19799999999999998" depth="0.012" position="0 0.535 0.216" material="color:#a6a9ad; roughness:0.5"></a-box>
+    <a-box width="0.14" height="0.018" depth="0.016" position="0 0.605 0.228" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-box width="0.53" height="0.188" depth="0.012" position="0 0.315 0.216" material="color:#a6a9ad; roughness:0.5"></a-box>
+    <a-box width="0.14" height="0.018" depth="0.016" position="0 0.380 0.228" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-box width="0.62" height="0.02" depth="0.46" position="0 0.975 0" material="color:#9a9da2"></a-box>
+    <a-box width="0.62" height="0.04" depth="0.012" position="0 1.0 0.225" material="color:#9a9da2"></a-box>
+    <a-box width="0.62" height="0.04" depth="0.012" position="0 1.0 -0.225" material="color:#9a9da2"></a-box>
+    <a-box width="0.012" height="0.04" depth="0.46" position="-0.305 1.0 0" material="color:#9a9da2"></a-box>
+    <a-box width="0.012" height="0.04" depth="0.46" position="0.305 1.0 0" material="color:#9a9da2"></a-box>
+    <a-cylinder radius="0.012" height="0.36" position="-0.34 0.9 0" rotation="90 0 0" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-cylinder>
+    <a-box width="0.04" height="0.02" depth="0.02" position="-0.315 0.9 0.17" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-box width="0.04" height="0.02" depth="0.02" position="-0.315 0.9 -0.17" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-box width="0.26" height="0.025" depth="0.18" position="-0.1 1.0 0.02" material="color:#c9ccd1; metalness:0.8; roughness:0.25"></a-box>
+    <a-box width="0.13" height="0.07" depth="0.24" position="0.17 1.02 0" material="color:#f4f6f8"></a-box>
+    <a-box width="0.08" height="0.002" depth="0.04" position="0.17 1.056 0.05" material="color:#6aa2d8"></a-box>
   </a-entity>
 
   <!-- 환자 모니터: 환자 왼쪽(침대 머리 쪽 옆) 바퀴 달린 스탠드 위 · 화면이 침대 발치·폴대 쪽을 향함 -->
