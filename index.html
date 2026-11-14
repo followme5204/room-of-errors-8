@@ -765,6 +765,34 @@ AFRAME.registerComponent('sign-plate', {
   }
 });
 
+/* 의료폐기물 용기 라벨: 노란 바탕 + 생물위해(바이오해저드) 표시 + '의료폐기물' 글씨 */
+AFRAME.registerComponent('waste-label', {
+  init: function () {
+    const cv = document.createElement('canvas'); cv.width = 500; cv.height = 400;
+    const g = cv.getContext('2d'), F = '"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif';
+    g.fillStyle = '#f5c518'; g.fillRect(0, 0, 500, 400);
+    g.strokeStyle = '#111'; g.lineWidth = 8; g.strokeRect(8, 8, 484, 384);
+    // 생물위해 표시(단순화): 가운데 원 + 세 개의 고리
+    const cx = 250, cy = 120;
+    g.strokeStyle = '#111'; g.lineWidth = 14;
+    for (let k = 0; k < 3; k++) {
+      const a = -Math.PI / 2 + k * 2 * Math.PI / 3, ox = cx + Math.cos(a) * 38, oy = cy + Math.sin(a) * 38;
+      g.beginPath(); g.arc(ox, oy, 42, 0, Math.PI * 2); g.stroke();
+    }
+    g.beginPath(); g.arc(cx, cy, 30, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#f5c518'; g.beginPath(); g.arc(cx, cy, 12, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#111'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 74px ' + F; g.fillText('의료폐기물', 250, 262);
+    g.fillStyle = '#c0392b'; g.font = 'bold 40px ' + F; g.fillText('일반의료폐기물 전용용기', 250, 340);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    this.mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 });
+  },
+  tick: function () {
+    const mesh = this.el.getObject3D('mesh');
+    if (mesh && mesh.material !== this.mat) mesh.material = this.mat;
+  }
+});
+
 function showMsg(html){
   const m = document.getElementById('toast'); m.innerHTML = html; m.style.display = 'block';
   clearTimeout(showMsg.t); showMsg.t = setTimeout(() => m.style.display = 'none', 6000);
@@ -817,6 +845,7 @@ function showMsg(html){
       <option value="cabinet">서랍장</option>
       <option value="gbed">보호자 침대</option>
       <option value="cart">이동식 카트</option>
+      <option value="wastebox">의료폐기물 용기</option>
     </select></label>
   <label>높이 (위·아래) <span class="v" id="vy"></span><input type="range" id="py" min="0" max="1.5" step="0.01"></label>
   <label>앞·뒤 <span class="v" id="vz"></span><input type="range" id="pz" min="-4" max="-1" step="0.01"></label>
@@ -911,6 +940,14 @@ function showMsg(html){
   <!-- 손씻기 구역: 세면대(sink.glb)를 오른쪽 벽에 붙임 — 문에서 약 0.7m 떨어져 문을 가리지 않음.
        세면대 윗면 높이 약 0.85m -->
   <a-entity id="sink" gltf-model="url(sink.glb)" scale="0.28 0.28 0.28" position="2.934 0.748 -1.0" rotation="0 -90 0"></a-entity>
+  <!-- 의료폐기물(적출물) 전용용기: 세면대 밑 바닥, 벽에 붙임 · 골판지 상자형(일반의료폐기물) · 라벨이 방 안쪽을 향함 -->
+  <a-entity id="wastebox" position="3.03 0 -1.0" rotation="0 -90 0">
+    <a-box width="0.36" height="0.44" depth="0.3" position="0 0.22 0" material="color:#c9a46c; roughness:0.95"></a-box>
+    <a-box width="0.372" height="0.025" depth="0.312" position="0 0.452 0" material="color:#b8925a; roughness:0.95"></a-box>
+    <a-box width="0.06" height="0.003" depth="0.314" position="0 0.466 0" material="color:#e9d9a8; roughness:0.6"></a-box>
+    <a-plane width="0.3" height="0.24" position="0 0.25 0.151" waste-label></a-plane>
+  </a-entity>
+
   <!-- 손세정제(hand_soap.glb): 세면대 윗면 뒤쪽 모서리, 수도꼭지 옆 · 라벨이 사용자 쪽 -->
   <a-entity id="soap" gltf-model="url(hand_soap.glb)" scale="0.105 0.105 0.105" position="3.12 0.95 -1.09" rotation="0 -90 0"></a-entity>
   <!-- 페이퍼 타월 디스펜서(paper_towel.glb): 세면대 바로 위 벽 · 타월 나오는 곳 높이 약 1.25m -->
