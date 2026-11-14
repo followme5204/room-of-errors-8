@@ -370,7 +370,7 @@ AFRAME.registerComponent('iv-set', {
    환자 기준 오른쪽 = 화면의 -x 방향 (수액폴대 쪽). 환자 자세가 자리 잡으면 bulb를 한 번 자동 배치하고,
    그 뒤에는 조절창으로 bulb를 옮겨도 관이 따라감. */
 AFRAME.registerComponent('jp-drain', {
-  schema: { patient: {type: 'selector'}, bed: {type: 'selector'} },
+  schema: { patient: {type: 'selector'}, bed: {type: 'selector'}, hem: {type: 'number', default: 0.13} },   // hem: 상의 밑단 높이(골반 관절에서 머리 쪽으로 m)
   init: function () {
     this.tubeMat = new THREE.MeshStandardMaterial({ color: '#c4404a', roughness: 0.35, transparent: true, opacity: 0.85 });
     this.placed = false; this.still = 0; this.prev = ''; this.last = ''; this.ray = new THREE.Raycaster();
@@ -424,18 +424,26 @@ AFRAME.registerComponent('jp-drain', {
       pts = [P, new V(ruq.x - 0.15, this.oy1 + 0.008, ruq.z), new V(ruq.x - 0.18, Math.max(this.oy2, B2.y) + 0.004, ruq.z + 0.015), B2, E];
     } else {
       // 상의 속: 삽입 부위에서 몸 표면 바로 아래(1.5cm)를 따라 상의 맨 밑단(허리, 환자 오른쪽)까지 → 밑단에서 빠져나와 옆구리로 내려감
-      if (this.hemKey !== k) {
-        this.hemKey = k;
-        const hx = H.x - 0.11, hz = H.z - 0.03;                          // 상의 맨 밑단 위치 (골반 바로 위, 오른쪽)
-        const sy = (xx, zz) => { const y = this.surfaceY(pt, xx, zz, ruq.y + 0.4); return y !== null ? y : P.y - 0.03; };
-        this.inner = [0.3, 0.6, 0.85].map(f => {
-          const xx = P.x + (hx - P.x) * f, zz = P.z + (hz - P.z) * f;
-          return new V(xx, sy(xx, zz) - 0.015, zz);
+      if (this.hemKey !== k + this.data.hem) {
+        this.hemKey = k + this.data.hem;
+        const hx = H.x - 0.10, hz = H.z - this.data.hem;                 // 상의 맨 밑단 (환자 오른쪽 앞)
+        const sy = (xx, zz) => this.surfaceY(pt, xx, zz, ruq.y + 0.4);
+        this.inner = [0.3, 0.6, 0.85].map(f => {                        // 상의 속: 몸 표면 1.5cm 아래
+          const xx = P.x + (hx - P.x) * f, zz = P.z + (hz - P.z) * f, y = sy(xx, zz);
+          return new V(xx, (y !== null ? y : P.y - 0.03) - 0.015, zz);
         });
-        this.hemOut = new V(hx - 0.01, sy(hx, hz + 0.02) + 0.006, hz + 0.025);   // 밑단 밖으로 나온 곳
-        this.side = new V(H.x - 0.2, BED.top + 0.04, H.z);                      // 옆구리를 타고 매트리스로
+        // 밑단에서 빠져나온 뒤: 몸(바지) 표면 위를 따라 옆으로 → 몸 끝에서 매트리스로 내려감 (바지를 뚫지 않게)
+        this.outer = [];
+        let lx = hx, lz = hz;
+        for (let k2 = 0; k2 <= 5; k2++) {
+          const xx = hx - 0.03 * k2, zz = hz + 0.012 * k2, y = sy(xx, zz);
+          if (y === null || y < BED.top + 0.04) break;
+          this.outer.push(new V(xx, y + 0.007, zz)); lx = xx; lz = zz;
+        }
+        if (!this.outer.length) this.outer.push(new V(hx, (sy(hx, hz) || P.y) + 0.007, hz));
+        this.side = new V(lx - 0.05, BED.top + 0.02, lz + 0.01);
       }
-      pts = [P, ...this.inner, this.hemOut, this.side, E];
+      pts = [P, ...this.inner, ...this.outer, this.side, E];
     }
     const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, 0.0035, 6, false);
     if (this.tube) { this.tube.geometry.dispose(); this.tube.geometry = geo; }
@@ -1143,8 +1151,9 @@ function showMsg(html){
              width="1.48" height="1.0" position="0.01 0.105 0.555"></a-plane>
   </a-entity>
   <!-- BP 커프 (환자 왼팔, 모니터와 호스로 연결) — 클릭하면 오른팔로 옮김 (E6) -->
-  <!-- JP 배액관: 환자 오른쪽 상복부에서 나와 오른쪽 옆 매트리스 위 bulb로 (자리는 자동으로 잡힘) -->
-  <a-entity id="jp" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed" position="-0.5 0.6 -2.4"></a-entity>
+  <!-- JP 배액관: 환자 오른쪽 상복부에서 나와 상의 속을 지나 상의 맨 밑단에서 빠져나와 bulb로 (자리는 자동으로 잡힘)
+       hem: 상의 밑단 위치(골반에서 머리 쪽으로 m). 관이 바지에서 나오면 키우고(0.16), 상의 중간에서 나오면 줄이세요(0.10) -->
+  <a-entity id="jp" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed; hem: 0.13" position="-0.5 0.6 -2.4"></a-entity>
 
   <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
   <a-entity id="ivsite" class="clickable" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
