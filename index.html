@@ -722,6 +722,26 @@ AFRAME.registerComponent('marble-floor', {
   }
 });
 
+/* 머리 쪽 벽 붙이기: 침대 모델이 불러와지면 침대 머리 끝 위치를 재서, 머리 쪽 벽과 벽에 붙은 물건(class="onwall":
+   벽·창문·걸레받이·의료가스 패널·서랍장·카트·보호자 침대)을 침대 머리 끝 바로 뒤(gap m)로 함께 옮김 */
+AFRAME.registerComponent('snap-wall', {
+  schema: { gap: {type: 'number', default: 0.02}, wallZ: {type: 'number', default: -4.2} },
+  init: function () {
+    this.el.addEventListener('model-loaded', () => setTimeout(() => this.snap(), 300));
+  },
+  snap: function () {
+    const m = this.el.getObject3D('mesh'); if (!m) return;
+    this.el.object3D.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(m);
+    const dz = (box.min.z - this.data.gap) - this.data.wallZ;      // 벽을 앞으로 당길 거리
+    if (!(dz > 0.01 && dz < 1.5)) return;
+    document.querySelectorAll('.onwall').forEach(el => {
+      const p = el.getAttribute('position');
+      el.setAttribute('position', { x: p.x, y: p.y, z: +(p.z + dz).toFixed(3) });
+    });
+  }
+});
+
 function showMsg(html){
   const m = document.getElementById('toast'); m.innerHTML = html; m.style.display = 'block';
   clearTimeout(showMsg.t); showMsg.t = setTimeout(() => m.style.display = 'none', 6000);
@@ -796,13 +816,13 @@ function showMsg(html){
   <!-- 병실: 바닥·벽·창문 -->
   <!-- 바닥: 대리석 타일 (60cm 타일, 그림은 코드로 생성) -->
   <a-plane rotation="-90 0 0" width="8" height="8" position="0 0 -2" marble-floor></a-plane>
-  <a-plane width="8" height="3" color="#ece5d8" position="0 1.5 -4.2"></a-plane>
+  <a-plane class="onwall" width="8" height="3" color="#ece5d8" position="0 1.5 -4.2"></a-plane>
   <a-plane width="8" height="3" color="#ece5d8" position="-3.2 1.5 -2" rotation="0 90 0"></a-plane>
   <a-plane width="8" height="3" color="#ece5d8" position="3.2 1.5 -2" rotation="0 -90 0"></a-plane>
   <!-- 앞쪽 벽(침대 발치 너머)과 천장: 방을 닫아서 벽 밖 빈 공간이 보이지 않게 -->
   <a-plane width="6.4" height="3" color="#ece5d8" position="0 1.5 1.6" rotation="0 180 0"></a-plane>
   <a-plane width="6.4" height="5.8" color="#f7f8f9" position="0 3 -1.3" rotation="90 0 0"></a-plane>
-  <a-plane width="1.4" height="0.9" color="#a9d3f0" position="1.4 1.7 -4.18"></a-plane>
+  <a-plane class="onwall" width="1.4" height="0.9" color="#a9d3f0" position="1.4 1.7 -4.18"></a-plane>
   <!-- 천장 전등: 매입형 LED 평판등(60×60cm) 5개 — 침대 위 1개 + 방 앞뒤 좌우 4개. 빛나는 면은 조명 영향 없이 밝게 표시 -->
   <a-entity position="0 2.99 -2.45">
     <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
@@ -826,7 +846,7 @@ function showMsg(html){
   </a-entity>
 
   <!-- 걸레받이(벽 아래 띠, 높이 10cm): 바닥과 벽 경계가 잘 보이게 -->
-  <a-box width="6.4" height="0.1" depth="0.015" color="#6e675e" position="0 0.05 -4.19"></a-box>
+  <a-box class="onwall" width="6.4" height="0.1" depth="0.015" color="#6e675e" position="0 0.05 -4.19"></a-box>
   <a-box width="5.8" height="0.1" depth="0.015" color="#6e675e" position="-3.19 0.05 -1.3" rotation="0 90 0"></a-box>
   <a-box width="5.8" height="0.1" depth="0.015" color="#6e675e" position="3.19 0.05 -1.3" rotation="0 90 0"></a-box>
   <a-box width="6.4" height="0.1" depth="0.015" color="#6e675e" position="0 0.05 1.59"></a-box>
@@ -864,7 +884,7 @@ function showMsg(html){
 
   <!-- 침대 (bed.glb): 전동 병원침대, 길이 약 2.1m · 머리 쪽이 벽 · 매트리스 윗면 높이 약 0.59m
        bed-rails rightDown: true = 환자 오른쪽 난간 내려감 / false = 올라감 -->
-  <a-entity id="bed" gltf-model="url(bed.glb)" bed-rails="rightDown: true" scale="1.104 1.104 1.104" position="0 0.411 -2.45" rotation="0 90 0"></a-entity>
+  <a-entity id="bed" gltf-model="url(bed.glb)" snap-wall="gap: 0.02" bed-rails="rightDown: true" scale="1.104 1.104 1.104" position="0 0.411 -2.45" rotation="0 90 0"></a-entity>
   <!-- 베개: 볼록한 베개 + 흰 바탕에 작은 CAU 글씨가 반복된 병원 베갯잇 -->
   <a-sphere radius="1" scale="0.32 0.065 0.2" position="0 0.648 -3.17" segments-width="36" segments-height="18" pillowcase></a-sphere>
 
@@ -892,7 +912,7 @@ function showMsg(html){
 
   <!-- 병실 서랍장(키큰장): 폭 50 × 깊이 50 × 높이 210cm · 수액폴대 옆, 침대 머리 쪽 벽에 붙여 세움 · 앞면이 TV 쪽을 바라봄
        아래부터: 문 달린 하부장 → 서랍 → 열린 선반 칸 → 문 달린 상부장 -->
-  <a-entity id="cabinet" position="-1.55 0 -3.94" rotation="0 0 0">
+  <a-entity id="cabinet" class="onwall" position="-1.55 0 -3.94" rotation="0 0 0">
     <a-box width="0.018" height="2.1" depth="0.5" position="-0.241 1.05 0" material="color:#d8c49b; roughness:0.7"></a-box>
     <a-box width="0.018" height="2.1" depth="0.5" position="0.241 1.05 0" material="color:#d8c49b; roughness:0.7"></a-box>
     <a-box width="0.464" height="2.1" depth="0.012" position="0 1.05 -0.244" material="color:#c9b385; roughness:0.7"></a-box>
@@ -911,7 +931,7 @@ function showMsg(html){
 
   <!-- 보호자 침대(접이식, 펼친 모습): 길이 약 185 × 폭 60 × 높이 45cm · 남색 쿠션 3칸 + 아이보리 철제 프레임 + 바퀴
        병실 서랍장 앞에, 머리 쪽이 서랍장을 향하고 발치가 TV 쪽 -->
-  <a-entity id="gbed" position="-1.55 0 -2.66" rotation="0 0 0">
+  <a-entity id="gbed" class="onwall" position="-1.55 0 -2.66" rotation="0 0 0">
     <a-box width="0.58" height="0.09" depth="0.6" position="0 0.405 -0.62" material="color:#2d4775; roughness:0.55"></a-box>
     <a-box width="0.58" height="0.09" depth="0.6" position="0 0.405 0" material="color:#2d4775; roughness:0.55"></a-box>
     <a-box width="0.58" height="0.09" depth="0.6" position="0 0.405 0.62" material="color:#2d4775; roughness:0.55"></a-box>
@@ -946,7 +966,7 @@ function showMsg(html){
   <!-- 환자 머리 위 벽: 의료가스 패널(Bed head unit) — 산소(초록)·공기(노랑)·흡인(검정) 출구, 콘센트,
        산소 유량계 + 가습병, 흡인 조절기 + 흡인병. 그 위에 병상 조명등(긴 간접등).
        창문(오른쪽)과 겹치지 않게 패널을 환자 오른쪽으로 조금 치우쳐 둠 -->
-  <a-entity id="headunit" position="-0.25 0 -4.16">
+  <a-entity id="headunit" class="onwall" position="-0.25 0 -4.16">
     <a-box width="1.7" height="0.24" depth="0.07" position="0 1.36 0" material="color:#e6c4b0; roughness:0.6"></a-box>
     <a-box width="1.7" height="0.035" depth="0.072" position="0 1.47 0" material="color:#f3ddd0; roughness:0.6"></a-box>
     <a-box width="0.075" height="0.075" depth="0.01" position="-0.12 1.35 0.04" material="color:#f4f4f2"></a-box>
@@ -992,7 +1012,7 @@ function showMsg(html){
   </a-entity>
 
   <!-- 이동식 카트(서랍 4단): 환자 모니터 뒤편, 침대 머리 쪽 벽(창문 아래)에 붙여 둠 · 서랍이 방 안쪽을 향함 -->
-  <a-entity id="cart" position="1.65 0 -3.92" rotation="0 0 0">
+  <a-entity id="cart" class="onwall" position="1.65 0 -3.92" rotation="0 0 0">
     <a-cylinder radius="0.04" height="0.025" position="-0.27 0.04 -0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
     <a-box width="0.03" height="0.05" depth="0.03" position="-0.27 0.09 -0.19" material="color:#555; metalness:0.5"></a-box>
     <a-cylinder radius="0.04" height="0.025" position="-0.27 0.04 0.19" rotation="0 0 90" material="color:#222; roughness:0.6"></a-cylinder>
