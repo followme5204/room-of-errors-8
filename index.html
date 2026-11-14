@@ -742,6 +742,29 @@ AFRAME.registerComponent('snap-wall', {
   }
 });
 
+/* 표지판 글씨(한글): 판 위에 큰 글씨(text)와 작은 글씨(sub)를 그려 넣음 */
+AFRAME.registerComponent('sign-plate', {
+  schema: { text: {default: ''}, sub: {default: ''}, bg: {default: '#1d4e89'}, fg: {default: '#ffffff'} },
+  init: function () {
+    const geo = this.el.getAttribute('geometry') || {}, w = geo.width || 1, h = geo.height || 0.3;
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = Math.max(64, Math.round(512 * h / w));
+    const g = cv.getContext('2d'), F = '"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif', d = this.data;
+    g.fillStyle = d.bg; g.fillRect(0, 0, cv.width, cv.height);
+    g.fillStyle = d.fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const fit = (t, size, maxW) => { let s = size; do { g.font = 'bold ' + s + 'px ' + F; s -= 2; } while (g.measureText(t).width > maxW && s > 10); };
+    if (d.sub) {
+      fit(d.text, cv.height * 0.5, cv.width * 0.9); g.fillText(d.text, cv.width / 2, cv.height * 0.4);
+      fit(d.sub, cv.height * 0.22, cv.width * 0.9); g.globalAlpha = 0.9; g.fillText(d.sub, cv.width / 2, cv.height * 0.78); g.globalAlpha = 1;
+    } else { fit(d.text, cv.height * 0.7, cv.width * 0.9); g.fillText(d.text, cv.width / 2, cv.height * 0.52); }
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    this.mat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
+  },
+  tick: function () {
+    const mesh = this.el.getObject3D('mesh');
+    if (mesh && mesh.material !== this.mat) mesh.material = this.mat;
+  }
+});
+
 function showMsg(html){
   const m = document.getElementById('toast'); m.innerHTML = html; m.style.display = 'block';
   clearTimeout(showMsg.t); showMsg.t = setTimeout(() => m.style.display = 'none', 6000);
@@ -868,7 +891,18 @@ function showMsg(html){
     <a-plane width="0.86" height="0.22" color="#b9bec4" position="0 0.13 0.034"></a-plane>
     <a-box width="0.04" height="0.04" depth="0.05" color="#a7acb2" position="0.36 1.0 0.055"></a-box>
     <a-box width="0.15" height="0.025" depth="0.025" color="#c4c8cd" position="0.3 1.0 0.08"></a-box>
-    <a-plane width="0.3" height="0.12" color="#2f6fb3" position="0 2.32 0.012"></a-plane>
+    <a-plane width="0.42" height="0.14" position="0 2.32 0.012" sign-plate="text: 출입구; sub: EXIT; bg: #1f8a4c; fg: #ffffff"></a-plane>
+    <!-- 병실 번호판: 문 오른쪽(침대 발치 쪽) 벽, 눈높이 -->
+    <a-box width="0.3" height="0.2" depth="0.012" color="#d9dde2" position="0.78 1.5 0.006"></a-box>
+    <a-plane width="0.28" height="0.18" position="0.78 1.5 0.013" sign-plate="text: 801호; sub: 1인실 · 외과병동; bg: #1d4e89; fg: #ffffff"></a-plane>
+  </a-entity>
+
+  <!-- 전등 스위치: 손소독제 바로 옆(출입문 쪽), 높이 약 1.2m · 2구 스위치 -->
+  <a-entity id="lightswitch" position="3.193 1.2 -0.38" rotation="0 -90 0">
+    <a-box width="0.085" height="0.125" depth="0.012" color="#f6f6f3"></a-box>
+    <a-box width="0.026" height="0.07" depth="0.01" color="#ffffff" position="-0.016 0 0.009" rotation="6 0 0"></a-box>
+    <a-box width="0.026" height="0.07" depth="0.01" color="#ffffff" position="0.016 0 0.009" rotation="-6 0 0"></a-box>
+    <a-plane width="0.085" height="0.03" position="0 0.085 0.004" sign-plate="text: 전등; bg: #f6f6f3; fg: #555555"></a-plane>
   </a-entity>
 
   <!-- 손소독제(sanitizer.glb): 출입문 바로 옆 벽, 문과 세면대 사이 · 높이 약 1.2m -->
