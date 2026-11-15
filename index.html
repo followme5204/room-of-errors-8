@@ -945,6 +945,43 @@ AFRAME.registerComponent('arm-band', {
   }
 });
 
+/* 침대 리모컨: 매트리스 위(환자 오른쪽 어깨 옆)에 놓인 리모컨. 화면에 침상머리 각도 표시 (E7: 0° → 교정 30°)
+   클릭하면 팝업(E7) */
+AFRAME.registerComponent('bed-remote', {
+  schema: { angle: {default: 0} },
+  init: function () {
+    const T = THREE;
+    this.cv = document.createElement('canvas'); this.cv.width = 256; this.cv.height = 576;
+    this.tex = new T.CanvasTexture(this.cv); this.tex.colorSpace = T.SRGBColorSpace;
+    const body = new T.Mesh(new T.BoxGeometry(0.07, 0.022, 0.16), new T.MeshStandardMaterial({ color: '#e8ecf1', roughness: 0.5 }));
+    const face = new T.Mesh(new T.PlaneGeometry(0.064, 0.144), new T.MeshBasicMaterial({ map: this.tex, toneMapped: false }));
+    face.rotation.x = -Math.PI / 2; face.position.y = 0.0115;
+    const g = new T.Group(); g.add(body); g.add(face);
+    // 리모컨 줄: 매트리스 가장자리로 넘어가 침대 아래로
+    const cord = new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3([new T.Vector3(0, 0, -0.08), new T.Vector3(-0.03, 0.005, -0.13),
+      new T.Vector3(-0.12, 0.01, -0.12), new T.Vector3(-0.16, -0.06, -0.1), new T.Vector3(-0.17, -0.2, -0.08)]), 24, 0.0025, 6, false),
+      new T.MeshStandardMaterial({ color: '#8a9099', roughness: 0.6 }));
+    g.add(cord);
+    g.add(new T.Mesh(new T.BoxGeometry(0.13, 0.06, 0.22), new T.MeshBasicMaterial({ visible: false })));   // 클릭 영역
+    this.el.setObject3D('mesh', g);
+    this.el.addEventListener('click', () => { if (window.openItem) openItem('e7'); });
+  },
+  update: function () {
+    const g = this.cv.getContext('2d'), a = this.data.angle;
+    g.fillStyle = '#d9dee5'; g.fillRect(0, 0, 256, 576);
+    g.fillStyle = '#0d1a14'; g.fillRect(20, 20, 216, 150);                                   // 화면
+    g.fillStyle = a >= 30 ? '#6dff9c' : '#ffd84a'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 34px sans-serif'; g.fillText('HEAD', 128, 55);
+    g.font = 'bold 76px sans-serif'; g.fillText(a + '°', 128, 120);
+    // 침대 모양 아이콘 + 버튼
+    const btn = (y, label) => { g.fillStyle = '#ffffff'; g.beginPath(); g.arc(80, y, 34, 0, Math.PI * 2); g.arc(176, y, 34, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#2b3a55'; g.font = 'bold 40px sans-serif'; g.fillText('▲', 80, y + 2); g.fillText('▼', 176, y + 2);
+      g.font = 'bold 22px sans-serif'; g.fillText(label, 128, y + 50); };
+    btn(250, '등판 (HEAD)'); btn(370, '다리 (KNEE)'); btn(490, '높이 (BED)');
+    this.tex.needsUpdate = true;
+  }
+});
+
 function showMsg(html){
   const m = document.getElementById('toast'); m.innerHTML = html; m.style.display = 'block';
   clearTimeout(showMsg.t); showMsg.t = setTimeout(() => m.style.display = 'none', 6000);
@@ -1277,6 +1314,8 @@ function showMsg(html){
   <a-entity id="jpc" class="clickable" gltf-model="url(jp_compressed.glb)" visible="false" position="-0.5 0.6 -2.4" scale="0.05 0.05 0.028" rotation="-90 0 0"></a-entity>
 
   <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
+  <!-- 침대 리모컨: 매트리스 위 환자 오른쪽 어깨 옆. 화면 = 침상머리 각도 (E7: 0°, 교정하면 30°). 클릭 → 팝업 -->
+  <a-entity id="remote" class="clickable" bed-remote="angle: 0" position="-0.36 0.606 -3.02" rotation="0 12 0"></a-entity>
   <!-- ARM SAVE 밴드: 환자 왼쪽 손목 (Lt. arm save 표시, 분홍 실리콘 밴드) -->
   <a-entity id="armband" arm-band="patient: #patient; side: Left; text: ARM SAVE"></a-entity>
   <!-- 환자 확인 손목밴드: 오른쪽 손목, 흰 밴드에 이름·등록번호·바코드. 등록번호 10234576 = 차트(10234567)와 다름 → E1 오류. 클릭 → 팝업 -->
@@ -1369,7 +1408,7 @@ const ITEMS = {
   e4:{err:true,w:10,title:'인퓨전펌프 (수액 속도)',see:'Plasma 1 L 주입 속도: <b>20 mL/hr</b><br>처방: 80 mL/hr',fix:'처방 속도 80 mL/hr로 교정하고 5 Rights 재확인',why:'5 Rights에 따른 주입 속도 확인 (의료기관평가인증원, 2026)'},
   e5:{err:true,w:10,title:'PCA line · 3-way',see:'PCA line을 따라가 보니 <b>3-way 손잡이가 PCA 쪽으로 잠겨 있음</b> → 기저유량·bolus가 들어가지 않음.<br>환자: "눌러도 별로 안 나아지는 것 같아요."',fix:'3-way를 돌려 PCA line을 열고 line을 환자까지 추적, 통증(NRS) 재사정',why:'근무 시작 시 PCA 작동·line 개방 확인 (RHW, 2025; Kent CHFT, 2026)'},
   e6:{err:true,w:5,title:'왼팔 BP cuff',see:'<b>Lt. arm 상완에 BP cuff</b>가 감겨 있음.<br>처방: Lt. arm save (BP·IV·채혈 금지)',fix:'왼팔에서 cuff를 제거하고 Rt. arm으로 옮겨 V/S 측정',why:'ALND 후 위험측 상지 BP·채혈·IV 회피 (Brophy et al., 2022)'},
-  e7:{err:true,w:5,title:'침상 각도',see:'침상머리가 <b>0°(flat)</b>로 누워 있음.<br>처방: semi-Fowler\'s',fix:'리모컨으로 침상머리를 30~45°로 올림',why:'복강경 수술 후 반좌위 (최운정 외, 2017; 서울특별시간호사회, 2023)'},
+  e7:{err:true,w:5,title:'침상 각도',see:'침대 리모컨 화면: 침상머리(HEAD) <b>0°(flat)</b>.<br>처방: semi-Fowler\'s',fix:'리모컨으로 침상머리를 30~45°로 올림',why:'복강경 수술 후 반좌위 (최운정 외, 2017; 서울특별시간호사회, 2023)'},
   e8:{err:true,w:10,title:'Side rail · Call bell',see:'가까운 쪽 <b>side rail이 내려가 있고</b>, <b>call bell이 바닥에</b> 떨어져 있음.',fix:'side rail을 올리고 call bell을 환자 손이 닿는 곳에 둠',why:'낙상 위험 환경 관리 (의료기관평가인증원, 2026; 병원간호사회, 2019)'},
   n_iv:{err:false,title:'Rt. arm 말초정맥관',see:'삽입부 깨끗함, 발적·부종 없음, 고정 양호. (12/14 18G 2pm)'},
   n_dress:{err:false,title:'하복부 드레싱',see:'투관침 부위 드레싱 — 깨끗하고 건조함.'},
@@ -1396,7 +1435,7 @@ function openPop(title, body, btns){
 }
 function closePop(){ $r('roePop').classList.add('hidden'); }
 /* 🔍 가까이 보기: 팝업에서 누르면 그 물건 앞 약 50cm로 다가가 내려다봄. [↩ 원래 시점]으로 돌아옴 */
-const FOCUS = { e1:'idband', e2:'abdwound', e3:'jp', e4:'pumpscreen', e5:'threeway', e6:'cuff', n_iv:'ivsite', n_fluid:'ivbag', n_pca:'pca', n_dress:'abdwound' };
+const FOCUS = { e7:'remote', e1:'idband', e2:'abdwound', e3:'jp', e4:'pumpscreen', e5:'threeway', e6:'cuff', n_iv:'ivsite', n_fluid:'ivbag', n_pca:'pca', n_dress:'abdwound' };
 let savedView = null;
 function getView(){
   const rig = $r('rig').object3D, cam = $r('cam'), lc = cam.components['look-controls'];
@@ -1446,6 +1485,7 @@ function applyFix(id){   // 교정된 모습으로 바꾸기
   if (id === 'e4') document.querySelector('[pump-screen]').setAttribute('pump-screen', 'rate', 80);
   if (id === 'e5') { st.e5At = st.t; document.querySelector('[iv-set]').setAttribute('iv-set', 'pcaClosed', false); }
   if (id === 'e6') $r('cuff').setAttribute('bp-cuff', 'side', 'right');
+  if (id === 'e7') $r('remote').setAttribute('bed-remote', 'angle', 30);   // 리모컨으로 침상머리 30°
   if (id === 'e3') $r('jp').setAttribute('jp-drain', 'fixed', true);
 }
 function vitals(t){   // 오류를 못 찾으면 시간에 따라 나빠지는 활력징후
