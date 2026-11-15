@@ -371,6 +371,7 @@ AFRAME.registerComponent('iv-set', {
    그 뒤에는 조절창으로 bulb를 옮겨도 관이 따라감. */
 AFRAME.registerComponent('jp-drain', {
   schema: { patient: {type: 'selector'}, bed: {type: 'selector'}, hem: {type: 'number', default: 0.13},   // hem: 상의 밑단 높이(골반 관절에서 머리 쪽으로 m)
+            cmp: {type: 'selector'},     // 압축 bulb 모델(jp_compressed.glb)을 담은 엔티티 — 처음엔 숨겨 두고 교정되면 보임
             fixed: {default: false} },   // false = E3 오류(부푼 bulb, line 고정 안 됨) / true = 교정(압축 bulb, line을 환자복에 테이프 고정)
   init: function () {
     this.tubeMat = new THREE.MeshStandardMaterial({ color: '#c4404a', roughness: 0.35, transparent: true, opacity: 0.85 });
@@ -381,11 +382,10 @@ AFRAME.registerComponent('jp-drain', {
     this.tape.visible = false; this.el.sceneEl.object3D.add(this.tape);   // line을 환자복에 고정한 테이프 (교정 후)
     this.el.addEventListener('click', () => { if (window.openItem) openItem('e3'); });
   },
-  update: function (old) {
-    if (old && old.fixed !== undefined && old.fixed !== this.data.fixed) {   // 교정되면 압축 bulb 모델로 바꾸고 다시 배치
-      this.el.setAttribute('gltf-model', this.data.fixed ? 'url(jp_compressed.glb)' : 'url(jp_bag.glb)');
-      this.placed = false; this.still = 0; this.last = ''; this.hemKey = '';
-    }
+  update: function () {   // 교정되면: 부푼 bulb 숨기고 같은 자리의 압축 bulb를 보여 줌 (모델을 새로 불러오지 않아 사라지지 않음)
+    this.el.setAttribute('visible', !this.data.fixed);
+    if (this.data.cmp) this.data.cmp.setAttribute('visible', !!this.data.fixed);
+    this.last = '';
   },
   bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
   surfaceY: function (obj, x, z, below) {   // (x,z) 위에서 아래로 쏘아 물체 윗면 높이 찾기
@@ -415,17 +415,18 @@ AFRAME.registerComponent('jp-drain', {
       }
       const top = this.surfaceY(bed, tx, tz, BED.top + 0.1), y = (top !== null ? top : BED.top);
       this.edge = null;
-      if (!this.data.fixed) {
+      {
         // E3 오류: 부푼 bulb(음압 소실)가 매트리스 위에 놓여 있고 line은 고정되어 있지 않음
         const s = 0.08;
         this.el.setAttribute('scale', s + ' ' + s + ' ' + s);
         this.el.setAttribute('rotation', '0 0 0');
         this.el.setAttribute('position', { x: +(tx + 0.58 * s).toFixed(3), y: +(y + 0.70 * s).toFixed(3), z: +tz.toFixed(3) });
-      } else {
-        // 교정: 압축 bulb를 같은 자리 매트리스 위에 눕혀 둠 (마개가 머리 쪽), line은 테이프로 환자복에 고정
-        this.el.setAttribute('scale', '0.05 0.05 0.028');
-        this.el.setAttribute('rotation', '-90 0 0');
-        this.el.setAttribute('position', { x: +tx.toFixed(3), y: +(y + 0.015).toFixed(3), z: +tz.toFixed(3) });
+      }
+      if (this.data.cmp) {
+        // 교정 후 모습(미리 같은 자리에 준비): 압축 bulb를 매트리스 위에 눕혀 둠 (마개가 머리 쪽), line은 테이프로 환자복에 고정
+        this.data.cmp.setAttribute('scale', '0.05 0.05 0.028');
+        this.data.cmp.setAttribute('rotation', '-90 0 0');
+        this.data.cmp.setAttribute('position', { x: +tx.toFixed(3), y: +(y + 0.015).toFixed(3), z: +tz.toFixed(3) });
       }
       this.placed = true; return;
     }
@@ -437,7 +438,9 @@ AFRAME.registerComponent('jp-drain', {
     }
     const P = this.P;
     this.el.object3D.updateMatrixWorld(true);
-    const E = this.el.object3D.localToWorld((this.data.fixed ? this.END_CMP : this.END_INF).clone());
+    let E;
+    if (this.data.fixed && this.data.cmp) { this.data.cmp.object3D.updateMatrixWorld(true); E = this.data.cmp.object3D.localToWorld(this.END_CMP.clone()); }
+    else E = this.el.object3D.localToWorld(this.END_INF.clone());
     const wnd = document.getElementById('abdwound'), open = !!(wnd && wnd.getAttribute('abd-wound') && wnd.getAttribute('abd-wound').open);
     const key = [P, E].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|') + open;
     if (key === this.last) return; this.last = key;
@@ -1183,7 +1186,9 @@ function showMsg(html){
   <!-- BP 커프 (환자 왼팔, 모니터와 호스로 연결) — 클릭하면 오른팔로 옮김 (E6) -->
   <!-- JP 배액관: 환자 오른쪽 상복부에서 나와 상의 속을 지나 상의 맨 밑단에서 빠져나와 bulb로 (자리는 자동으로 잡힘)
        hem: 상의 밑단 위치(골반에서 머리 쪽으로 m). 관이 바지에서 나오면 키우고(0.16), 상의 중간에서 나오면 줄이세요(0.10) -->
-  <a-entity id="jp" class="clickable" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed; hem: 0.13" position="-0.5 0.6 -2.4"></a-entity>
+  <a-entity id="jp" class="clickable" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed; cmp: #jpc; hem: 0.13" position="-0.5 0.6 -2.4"></a-entity>
+  <!-- 압축된 JP bulb (E3 교정 후 모습): 처음엔 숨김, 자리는 jp-drain이 부푼 bulb와 같은 곳에 잡아 줌 -->
+  <a-entity id="jpc" class="clickable" gltf-model="url(jp_compressed.glb)" visible="false" position="-0.5 0.6 -2.4" scale="0.05 0.05 0.028" rotation="-90 0 0"></a-entity>
 
   <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
   <a-entity id="ivsite" class="clickable" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
@@ -1382,6 +1387,7 @@ function roeFinish(){
 }
 // 정상 항목 클릭 연결 (오류 항목은 각 물건 코드에서 openItem 호출)
 $r('ivsite').addEventListener('click', () => openItem('n_iv'));
+$r('jpc').addEventListener('click', () => openItem('e3'));
 $r('ivbag').addEventListener('click', () => openItem('n_fluid'));
 $r('pca').addEventListener('click', () => openItem('n_pca'));
 </script>
