@@ -745,6 +745,7 @@ AFRAME.registerComponent('abd-wound', {
     // ⑤ 클릭 영역: 배 위를 덮는 보이지 않는 판 (닫혀 있을 때도 클릭 가능)
     this.root.add(sheet(sm, tm, Ls, Wt, 0.025, this.hitMat, 6));
     this.opened.visible = !!this.data.open;
+    this.root.traverse(o => { o.el = this.el; });   // 나중에 만든 판들도 클릭 판정되게
   },
   gauzeTex: function (ooze) {          // 거즈 그림: 가운데 거즈 + 위아래 테이프 + (있으면) 혈성 삼출 얼룩
     const cv = document.createElement('canvas'); cv.width = cv.height = 512;
@@ -992,6 +993,7 @@ AFRAME.registerComponent('arm-band', {
     }
     this.band.position.copy(C); this.band.quaternion.setFromUnitVectors(new V(0, 1, 0), axis);
     this.hit.position.copy(C); this.hit.quaternion.copy(this.band.quaternion); this.hit.scale.set(r + 0.02, 0.05, r + 0.02);   // 누르기 쉽게 넓은 클릭 영역
+    this.root.traverse(o => { o.el = this.el; });   // 나중에 붙인 밴드·클릭 영역도 이 엔티티로 인식되게 (A-Frame 클릭 판정에 필요)
   }
 });
 
