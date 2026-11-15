@@ -556,7 +556,8 @@ AFRAME.registerComponent('iv-dressing', {
     const body = new T.Mesh(new T.CylinderGeometry(0.0035, 0.0045, 0.022, 14), green); body.rotation.z = Math.PI / 2; this.hub.add(body);
     const wing = new T.Mesh(new T.BoxGeometry(0.01, 0.0012, 0.02), green); wing.position.x = 0.004; this.hub.add(wing);
     this.grp = new T.Group(); this.grp.add(this.film); this.grp.add(this.hub);
-    this.grp.add(new T.Mesh(new T.BoxGeometry(0.12, 0.06, 0.12), new T.MeshBasicMaterial({ visible: false })));   // 클릭 영역
+    const hitIV = new T.Mesh(new T.BoxGeometry(0.075, 0.02, 0.06), new T.MeshBasicMaterial({ visible: false }));   // 클릭 영역: 테가덤 크기만큼만
+    hitIV.position.set(0.004, 0.004, 0); this.grp.add(hitIV);                                                        // (손목밴드 클릭을 가리지 않게)
     this.el.setObject3D('mesh', this.grp);
     this.ray = new T.Raycaster(); this.last = '';
   },
@@ -968,7 +969,7 @@ AFRAME.registerComponent('arm-band', {
       this.hit = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 12), new THREE.MeshBasicMaterial({ visible: false })); this.root.add(this.hit);
     }
     this.band.position.copy(C); this.band.quaternion.setFromUnitVectors(new V(0, 1, 0), axis);
-    this.hit.position.copy(C); this.hit.quaternion.copy(this.band.quaternion); this.hit.scale.set(r + 0.02, 0.045, r + 0.02);   // 누르기 쉽게 넓은 클릭 영역
+    this.hit.position.copy(C); this.hit.quaternion.copy(this.band.quaternion); this.hit.scale.set(r + 0.02, 0.05, r + 0.02);   // 누르기 쉽게 넓은 클릭 영역
   }
 });
 
