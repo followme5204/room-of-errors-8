@@ -371,7 +371,7 @@ AFRAME.registerComponent('iv-set', {
    그 뒤에는 조절창으로 bulb를 옮겨도 관이 따라감. */
 AFRAME.registerComponent('jp-drain', {
   schema: { patient: {type: 'selector'}, bed: {type: 'selector'}, hem: {type: 'number', default: 0.13},   // hem: 상의 밑단 높이(골반 관절에서 머리 쪽으로 m)
-            fixed: {default: false} },   // false = E3 오류(부푼 bulb가 침대 밖으로 늘어짐) / true = 교정(압축 bulb, 매트리스 위, line 고정)
+            fixed: {default: false} },   // false = E3 오류(부푼 bulb, line 고정 안 됨) / true = 교정(압축 bulb, line을 환자복에 테이프 고정)
   init: function () {
     this.tubeMat = new THREE.MeshStandardMaterial({ color: '#c4404a', roughness: 0.35, transparent: true, opacity: 0.85 });
     this.placed = false; this.still = 0; this.prev = ''; this.last = ''; this.ray = new THREE.Raycaster();
@@ -405,27 +405,27 @@ AFRAME.registerComponent('jp-drain', {
     if (!this.placed) {                              // 환자 자세가 멈출 때까지 기다렸다가 한 번만 자동 배치
       this.still = (k === this.prev) ? this.still + 1 : 0; this.prev = k;
       if (this.still < 30) return;
-      const tz = (ruq.z + H.z) / 2 + 0.05;
+      // 자리: 환자 오른쪽 옆구리 옆 매트리스 위. 팔·손이 있으면 바깥쪽으로 비켜서 둠
+      const tz = (ruq.z + H.z) / 2;
+      let tx = ruq.x - 0.36;
+      for (let i = 0; i < 8; i++) {
+        const py = this.surfaceY(pt, tx, tz, BED.top + 0.6), by = this.surfaceY(bed, tx, tz, BED.top + 0.1);
+        if (py === null || (by !== null && py < by + 0.02)) break;
+        tx -= 0.03;
+      }
+      const top = this.surfaceY(bed, tx, tz, BED.top + 0.1), y = (top !== null ? top : BED.top);
+      this.edge = null;
       if (!this.data.fixed) {
-        // E3 오류: 부푼 bulb가 침대 오른쪽 가장자리 밖으로 늘어져 매달림 (line 고정 안 됨)
-        let edge = BED.x - 0.45;
-        for (let d = 0.25; d <= 0.8; d += 0.02) {
-          const y = this.surfaceY(bed, BED.x - d, tz, BED.top + 0.1);
-          if (y === null || y < BED.top - 0.06) { edge = BED.x - d + 0.02; break; }
-        }
-        this.edge = new V(edge, BED.top + 0.012, tz);
-        const s = 0.08, o = this.el.object3D;
-        o.scale.set(s, s, s); o.rotation.set(0, 0, Math.PI / 2); o.position.set(0, 0, 0); o.updateMatrixWorld(true);
-        const off = o.localToWorld(this.END_INF.clone()), pos = new V(edge - 0.05, BED.top - 0.18, tz).sub(off);
+        // E3 오류: 부푼 bulb(음압 소실)가 매트리스 위에 놓여 있고 line은 고정되어 있지 않음
+        const s = 0.08;
         this.el.setAttribute('scale', s + ' ' + s + ' ' + s);
-        this.el.setAttribute('rotation', '0 0 90');
-        this.el.setAttribute('position', { x: +pos.x.toFixed(3), y: +pos.y.toFixed(3), z: +pos.z.toFixed(3) });
+        this.el.setAttribute('rotation', '0 0 0');
+        this.el.setAttribute('position', { x: +(tx + 0.58 * s).toFixed(3), y: +(y + 0.70 * s).toFixed(3), z: +tz.toFixed(3) });
       } else {
-        // 교정: 압축 bulb를 매트리스 위 환자 오른쪽 옆구리 옆에 눕혀 둠 (마개가 머리 쪽)
-        const tx = ruq.x - 0.30, top = this.surfaceY(bed, tx, tz + 0.03, BED.top + 0.1);
-        this.el.setAttribute('scale', '0.047 0.047 0.025');
+        // 교정: 압축 bulb를 같은 자리 매트리스 위에 눕혀 둠 (마개가 머리 쪽), line은 테이프로 환자복에 고정
+        this.el.setAttribute('scale', '0.05 0.05 0.028');
         this.el.setAttribute('rotation', '-90 0 0');
-        this.el.setAttribute('position', { x: +tx.toFixed(3), y: +((top !== null ? top : BED.top) + 0.0125).toFixed(3), z: +(tz + 0.03).toFixed(3) });
+        this.el.setAttribute('position', { x: +tx.toFixed(3), y: +(y + 0.015).toFixed(3), z: +tz.toFixed(3) });
       }
       this.placed = true; return;
     }
@@ -1270,7 +1270,7 @@ const LIMIT = 600;
 const ITEMS = {
   e1:{err:true,w:5,title:'손목밴드',see:'밴드: 나예민 / 등록번호 <b>10234576</b><br>차트 등록번호: <b>10234567</b>',fix:'개방형 질문(성함·생년월일)으로 환자를 확인하고 정확한 밴드로 교체',why:'2가지 이상 식별정보로 환자 확인 (의료기관평가인증원, 2026)'},
   e2:{err:true,w:10,title:'우상복부 드레싱 · JP 배액',see:'RUQ 드레싱에 선홍색 혈액이 번져 있음(oozing).<br>JP bulb 안 <b>선홍색 배액 약 100 mL</b> (도착 시 혈성 20 mL)',fix:'V/S 재측정 후 담당의에게 SBAR 즉시 보고 → 구두처방 "수액 500 mL bolus" read-back 후 주입',why:'1시간 내 급격한 증가·선홍색 배액은 출혈 시사 → 즉시 보고 (Cleveland Clinic, 2023; MSKCC, 2023)'},
-  e3:{err:true,w:10,title:'JP drain bulb',see:'JP bulb가 둥글게 <b>부풀어 있음</b>(음압 소실). 배액 line이 침상 아래로 늘어져 고정되어 있지 않음.<br>처방: 음압 유지(bulb 압축 상태 유지)',fix:'bulb를 압축한 뒤 마개를 잠그고 line을 환자복에 고정',why:'음압이 없으면 배액이 덜 되어 출혈량이 과소평가됨 (Cleveland Clinic, 2023; MSKCC, 2023)'},
+  e3:{err:true,w:10,title:'JP drain bulb',see:'JP bulb가 둥글게 <b>부풀어 있음</b>(음압 소실). 배액 line이 환자복에 <b>고정되어 있지 않음</b>.<br>처방: 음압 유지(bulb 압축 상태 유지)',fix:'bulb를 압축한 뒤 마개를 잠그고 line을 환자복에 고정',why:'음압이 없으면 배액이 덜 되어 출혈량이 과소평가됨 (Cleveland Clinic, 2023; MSKCC, 2023)'},
   e4:{err:true,w:10,title:'인퓨전펌프 (수액 속도)',see:'Plasma 1 L 주입 속도: <b>20 mL/hr</b><br>처방: 80 mL/hr',fix:'처방 속도 80 mL/hr로 교정하고 5 Rights 재확인',why:'5 Rights에 따른 주입 속도 확인 (의료기관평가인증원, 2026)'},
   e5:{err:true,w:10,title:'PCA line · 3-way',see:'PCA line을 따라가 보니 <b>3-way 손잡이가 PCA 쪽으로 잠겨 있음</b> → 기저유량·bolus가 들어가지 않음.<br>환자: "눌러도 별로 안 나아지는 것 같아요."',fix:'3-way를 돌려 PCA line을 열고 line을 환자까지 추적, 통증(NRS) 재사정',why:'근무 시작 시 PCA 작동·line 개방 확인 (RHW, 2025; Kent CHFT, 2026)'},
   e6:{err:true,w:5,title:'왼팔 BP cuff',see:'<b>Lt. arm 상완에 BP cuff</b>가 감겨 있음.<br>처방: Lt. arm save (BP·IV·채혈 금지)',fix:'왼팔에서 cuff를 제거하고 Rt. arm으로 옮겨 V/S 측정',why:'ALND 후 위험측 상지 BP·채혈·IV 회피 (Brophy et al., 2022)'},
