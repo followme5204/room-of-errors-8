@@ -370,7 +370,7 @@ AFRAME.registerComponent('iv-set', {
     const PIN = pump.object3D.localToWorld(new V(0.238, 0.95, -0.088)), POUT = pump.object3D.localToWorld(new V(0.241, -0.95, 0.078));
     const pt = this.data.patient.getObject3D('mesh'); if (!pt) return;
     const fore = this.bone(pt,'RightForeArm'), hand = this.bone(pt,'RightHand'); if (!fore || !hand) return;
-    fore.getWorldPosition(S); hand.getWorldPosition(H); S.lerp(H, 0.45);         // 주입 부위: 아래팔 중간(손목밴드보다 팔꿈치 쪽)
+    fore.getWorldPosition(S); hand.getWorldPosition(H); S.lerp(H, 0.35);         // 주입 부위: 아래팔(손목밴드보다 팔꿈치 쪽)
     const site = document.getElementById('ivsite').object3D; site.updateMatrixWorld(true);
     const HUB = site.localToWorld(new V(0.024, 0.003, 0)), APP = site.localToWorld(new V(0.075, 0.012, 0));   // 카테터 허브 끝 / 손 쪽에서 들어오는 줄
     const key = [A,P,S,PIN,POUT,HUB].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
@@ -568,7 +568,7 @@ AFRAME.registerComponent('iv-dressing', {
     const V = THREE.Vector3, F = fore.getWorldPosition(new V()), H = hand.getWorldPosition(new V());
     const key = [F, H].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
     if (key === this.last) return; this.last = key;
-    const S = F.clone().lerp(H, 0.45);                      // 삽입 부위: 아래팔 중간 (손목밴드보다 팔꿈치 쪽)
+    const S = F.clone().lerp(H, 0.35);                      // 삽입 부위: 아래팔 (손목밴드보다 팔꿈치 쪽)
     const dir = new V(H.x - F.x, 0, H.z - F.z).normalize();  // 팔 방향 (팔꿈치 → 손)
     // 팔 윗면 높이: 위에서 아래로 쏘아 팔 표면 찾기 (못 찾으면 뼈 위 2.5cm)
     this.ray.set(new V(S.x, S.y + 0.4, S.z), new V(0, -1, 0));
@@ -1350,7 +1350,7 @@ function showMsg(html){
   <!-- ARM SAVE 밴드: 환자 왼쪽 손목 (Lt. arm save 표시, 분홍 실리콘 밴드) -->
   <a-entity id="armband" arm-band="patient: #patient; side: Left; text: ARM SAVE"></a-entity>
   <!-- 환자 확인 손목밴드: 오른쪽 손목, 흰 밴드에 이름·등록번호·바코드. 등록번호 10234576 = 차트(10234567)와 다름 → E1 오류. 클릭 → 팝업 -->
-  <a-entity id="idband" class="clickable" arm-band="patient: #patient; side: Right; text: 나예진 (F)|10234576; color: #fbfbf7; fg: #1b1b1b; repeat: 3; offset: 0.03; width: 0.03; barcode: true; item: e1"></a-entity>
+  <a-entity id="idband" class="clickable" arm-band="patient: #patient; side: Right; text: 나예진 (F)|10234576; color: #fbfbf7; fg: #1b1b1b; repeat: 3; offset: 0.02; width: 0.03; barcode: true; item: e1"></a-entity>
   <a-entity id="ivsite" class="clickable" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
 
   <!-- 수술 부위: 배를 클릭하면 환자복 상의가 열리고 포트 4곳 거즈가 보임. JP 삽입 부위(오른쪽 갈비뼈 아래 바깥쪽) 거즈에 oozing.
@@ -1576,7 +1576,11 @@ function roeFinish(){
   $r('roeResult').classList.remove('hidden');
 }
 // 정상 항목 클릭 연결 (오류 항목은 각 물건 코드에서 openItem 호출)
-$r('ivsite').addEventListener('click', () => openItem('n_iv'));
+$r('ivsite').addEventListener('click', e => {      // 테가덤과 손목밴드가 가까워서: 누른 점이 손목밴드에 더 가까우면 손목밴드(E1)로
+  const p = e.detail && e.detail.intersection && e.detail.intersection.point, ab = $r('idband').components['arm-band'];
+  const band = ab && ab.band ? ab.band.position : null, site = $r('ivsite').object3D.position;
+  if (p && band && p.distanceTo(band) < p.distanceTo(site)) openItem('e1'); else openItem('n_iv');
+});
 $r('railR').addEventListener('click', () => openItem('e8'));
 $r('railL').addEventListener('click', () => openItem('n_rail'));
 $r('jpc').addEventListener('click', () => openItem('e3'));
