@@ -176,6 +176,23 @@ AFRAME.registerComponent('bed-rails', {
         (isR ? R : L).expandByPoint(v);
       }
     });
+    // 올라간 난간이 침대 틀과 이어져 보이도록 세로 기둥(3개씩)을 붙임 — 내려간 난간은 기둥 숨김
+    if (!this.posts) {
+      this.posts = { R: [], L: [] };
+      const pm = new THREE.MeshStandardMaterial({ color: '#5b6067', metalness: 0.5, roughness: 0.4 });
+      ['R', 'L'].forEach(k => { for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 1, 10), pm); this.el.sceneEl.object3D.add(m); this.posts[k].push(m); } });
+    }
+    const bottomY = BED.top - 0.14;                                          // 매트리스 아래 침대 틀 높이
+    [['R', R, !this.data.rightDown], ['L', L, true]].forEach(([k, b, up]) => {
+      this.posts[k].forEach((m, i) => {
+        if (b.isEmpty() || !up) { m.visible = false; return; }
+        const f = [0.12, 0.5, 0.88][i], px = b.min.x + (b.max.x - b.min.x) * f, pz = b.min.z + (b.max.z - b.min.z) * f;
+        const top = b.min.y + 0.02, len = Math.max(0.05, top - bottomY);
+        m.visible = true; m.position.set((b.min.x + b.max.x) / 2 + (px - (b.min.x + b.max.x) / 2) * ((b.max.x - b.min.x) > (b.max.z - b.min.z) ? 1 : 0),
+          (top + bottomY) / 2, (b.min.z + b.max.z) / 2 + (pz - (b.min.z + b.max.z) / 2) * ((b.max.z - b.min.z) > (b.max.x - b.min.x) ? 1 : 0));
+        m.scale.set(1, len, 1);
+      });
+    });
     [['railR', R], ['railL', L]].forEach(([id, b]) => {
       const el = document.getElementById(id); if (!el || b.isEmpty()) return;
       if (!el.getObject3D('mesh')) el.setObject3D('mesh', new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ visible: false })));
@@ -1433,8 +1450,8 @@ function showMsg(html){
   <!-- 난간 클릭 영역(보이지 않음): 오른쪽 난간 = E8 오류(내려감) / 왼쪽 난간 = 정상 항목. 위치는 bed-rails가 잡아 줌 -->
   <a-entity id="railR" class="clickable"></a-entity>
   <a-entity id="railL" class="clickable"></a-entity>
-  <!-- 침대 리모컨: 매트리스 발 쪽 칸 위 환자 오른쪽 허벅지 옆, 줄은 머리 쪽 벽 콘센트에 꽂힘. 화면 = 침상머리 각도 (E7: 0°, 교정하면 30°). 클릭 → 팝업 -->
-  <a-entity id="remote" class="clickable" bed-remote="angle: 0" position="-0.36 0.606 -1.95" rotation="0 12 0"></a-entity>
+  <!-- 침대 리모컨: 매트리스 발 쪽 칸 위 환자 바로 오른쪽 옆(허리~엉덩이), 줄은 머리 쪽 벽 콘센트에 꽂힘. 화면 = 침상머리 각도 (E7: 0°, 교정하면 30°). 클릭 → 팝업 -->
+  <a-entity id="remote" class="clickable" bed-remote="angle: 0" position="-0.27 0.606 -2.1" rotation="0 8 0"></a-entity>
   <!-- ARM SAVE 밴드: 환자 왼쪽 손목 (Lt. arm save 표시, 분홍 실리콘 밴드) -->
   <a-entity id="armband" arm-band="patient: #patient; side: Left; text: ARM SAVE"></a-entity>
   <!-- 환자 확인 손목밴드: 오른쪽 손목, 흰 밴드에 이름·등록번호·바코드. 등록번호 10234576 = 차트(10234567)와 다름 → E1 오류. 클릭 → 팝업 -->
