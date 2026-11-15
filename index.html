@@ -866,16 +866,31 @@ AFRAME.registerComponent('waste-label', {
 /* ARM SAVE 밴드: 환자 왼쪽 손목에 분홍색 실리콘 밴드("ARM SAVE"). Lt. arm save 처방 표시 (E6 단서)
    손목 굵기는 환자 모델 표면에서 재서 밴드가 살에 묻히지 않게 맞춤 */
 AFRAME.registerComponent('arm-band', {
-  schema: { patient: {type: 'selector'}, side: {default: 'Left'}, text: {default: 'ARM SAVE'}, color: {default: '#ff3ea5'} },
+  schema: { patient: {type: 'selector'}, side: {default: 'Left'}, text: {default: 'ARM SAVE'}, color: {default: '#ff3ea5'},
+            fg: {default: '#111111'}, repeat: {default: 3}, offset: {default: 0.035}, width: {default: 0.018},
+            barcode: {default: false}, item: {default: ''} },   // item: 클릭하면 열 팝업 항목(예: e1)
   init: function () {
-    const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 64;
-    const g = cv.getContext('2d');
-    g.fillStyle = this.data.color; g.fillRect(0, 0, 1024, 64);
-    g.fillStyle = '#111'; g.font = 'bold 44px "Arial Black", Arial, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
-    for (let i = 0; i < 3; i++) g.fillText(this.data.text, 1024 / 3 * (i + 0.5), 34);    // 둘레에 3번 반복
-    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-    this.mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, side: THREE.DoubleSide });
+    this.cv = document.createElement('canvas'); this.cv.width = 1024; this.cv.height = 80;
+    this.tex = new THREE.CanvasTexture(this.cv); this.tex.colorSpace = THREE.SRGBColorSpace; this.tex.anisotropy = 4;
+    this.mat = new THREE.MeshStandardMaterial({ map: this.tex, roughness: 0.45, side: THREE.DoubleSide });
     this.band = null; this.prev = ''; this.still = 0; this.built = '';
+    this.root = new THREE.Group(); this.el.setObject3D('mesh', this.root);   // 엔티티는 원점에 두고 밴드를 월드 좌표로 붙임
+    if (this.data.item) this.el.addEventListener('click', () => { if (window.openItem) openItem(this.data.item); });
+  },
+  update: function () {   // 밴드 그림(글씨) 다시 그리기
+    const d = this.data, g = this.cv.getContext('2d'), W = 1024, H = 80, n = d.repeat;
+    g.fillStyle = d.color; g.fillRect(0, 0, W, H);
+    g.fillStyle = d.fg; g.textBaseline = 'middle'; g.textAlign = 'center';
+    g.font = 'bold ' + (d.barcode ? 34 : 50) + 'px "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",Arial,sans-serif';
+    for (let i = 0; i < n; i++) {
+      const cx = W / n * (i + 0.5);
+      if (d.barcode) {   // 이름·등록번호 + 바코드
+        g.fillText(d.text, cx - 50, H / 2 + 2);
+        let bx = cx + g.measureText(d.text).width / 2 - 30;
+        for (let k = 0; k < 18; k++) { const w = (k * 7 % 3) + 1; g.fillRect(bx, 16, w * 1.6, H - 32); bx += w * 1.6 + 2; }
+      } else g.fillText(d.text, cx, H / 2 + 3);
+    }
+    this.tex.needsUpdate = true;
   },
   bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
   tick: function () {
@@ -887,7 +902,7 @@ AFRAME.registerComponent('arm-band', {
     if (this.still < 30 || key === this.built) return;
     this.built = key;
     const axis = Hn.clone().sub(F).normalize();
-    const C = Hn.clone().addScaledVector(axis, -0.035);                 // 손목: 손 관절에서 팔꿈치 쪽으로 3.5cm
+    const C = Hn.clone().addScaledVector(axis, -this.data.offset);      // 손목: 손 관절에서 팔꿈치 쪽으로 offset(m)
     // 손목 굵기: 그 근처 아래팔·손 표면 점들의 축으로부터 거리
     let mesh = null; pt.traverse(o => { if (o.isSkinnedMesh && !mesh) mesh = o; });
     let r = 0.03;
@@ -906,11 +921,14 @@ AFRAME.registerComponent('arm-band', {
       }
       if (mx > 0.01) r = mx;
     }
-    const geo = new THREE.CylinderGeometry(r + 0.004, r + 0.004, 0.018, 48, 1, true);
+    const geo = new THREE.CylinderGeometry(r + 0.004, r + 0.004, this.data.width, 48, 1, true);
     if (this.band) { this.band.geometry.dispose(); this.band.geometry = geo; }
-    else { this.band = new THREE.Mesh(geo, this.mat); this.el.sceneEl.object3D.add(this.band); }
-    this.band.position.copy(C);
-    this.band.quaternion.setFromUnitVectors(new V(0, 1, 0), axis);
+    else {
+      this.band = new THREE.Mesh(geo, this.mat); this.root.add(this.band);
+      this.hit = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 12), new THREE.MeshBasicMaterial({ visible: false })); this.root.add(this.hit);
+    }
+    this.band.position.copy(C); this.band.quaternion.setFromUnitVectors(new V(0, 1, 0), axis);
+    this.hit.position.copy(C); this.hit.quaternion.copy(this.band.quaternion); this.hit.scale.set(r + 0.025, 0.06, r + 0.025);   // 누르기 쉽게 넓은 클릭 영역
   }
 });
 
@@ -1247,6 +1265,8 @@ function showMsg(html){
   <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
   <!-- ARM SAVE 밴드: 환자 왼쪽 손목 (Lt. arm save 표시, 분홍 실리콘 밴드) -->
   <a-entity id="armband" arm-band="patient: #patient; side: Left; text: ARM SAVE"></a-entity>
+  <!-- 환자 확인 손목밴드: 오른쪽 손목, 흰 밴드에 이름·등록번호·바코드. 등록번호 10234576 = 차트(10234567)와 다름 → E1 오류. 클릭 → 팝업 -->
+  <a-entity id="idband" class="clickable" arm-band="patient: #patient; side: Right; text: 나예민  F  10234576; color: #fbfbf7; fg: #1b1b1b; repeat: 2; offset: 0.025; width: 0.024; barcode: true; item: e1"></a-entity>
   <a-entity id="ivsite" class="clickable" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
 
   <!-- 수술 부위: 배를 클릭하면 환자복 상의가 열리고 포트 4곳 거즈가 보임. JP 삽입 부위(오른쪽 갈비뼈 아래 바깥쪽) 거즈에 oozing.
@@ -1381,6 +1401,7 @@ function report(id){
 }
 function applyFix(id){   // 교정된 모습으로 바꾸기
   if (id === 'e2') st.e2At = st.t;
+  if (id === 'e1') $r('idband').setAttribute('arm-band', 'text', '나예민  F  10234567');   // 정확한 밴드로 교체
   if (id === 'e4') document.querySelector('[pump-screen]').setAttribute('pump-screen', 'rate', 80);
   if (id === 'e5') { st.e5At = st.t; document.querySelector('[iv-set]').setAttribute('iv-set', 'pcaClosed', false); }
   if (id === 'e6') $r('cuff').setAttribute('bp-cuff', 'side', 'right');
