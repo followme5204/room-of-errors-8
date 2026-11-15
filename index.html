@@ -300,9 +300,11 @@ AFRAME.registerComponent('iv-set', {
     //   iv-set 기준 좌표: x = 주 라인(+x 펌프 쪽), z = PCA 옆 포트(위쪽), y = 손잡이 축
     //   손잡이 팔이 가리키는 쪽 = 열린 포트, 팔이 없는 쪽 = 잠긴 포트 → 처음(0°)은 팔 없는 쪽이 PCA 포트 = PCA 잠김
     const g = new T.Group(); this.lever = null;
+    const S3 = 0.08; this.S3 = S3;   // 3-way 크기 (0.08 = 길이 약 15cm, 학습자가 잘 보이게 실제의 약 2배)
     const m3 = document.createElement('a-entity');
     m3.setAttribute('gltf-model', 'url(threeway.glb)');
-    m3.setAttribute('scale', '0.05 0.05 0.05'); m3.setAttribute('rotation', '0 180 0'); m3.setAttribute('position', '0.015 0.0095 0.012');
+    m3.setAttribute('scale', S3 + ' ' + S3 + ' ' + S3); m3.setAttribute('rotation', '0 180 0');
+    m3.setAttribute('position', (0.30 * S3) + ' ' + (0.19 * S3) + ' ' + (0.24 * S3));   // 밸브 중심을 기준점에 맞춤
     m3.addEventListener('model-loaded', () => {
       const sc = m3.getObject3D('mesh'), h = sc.getObjectByName('handle'); if (!h) return;
       const pivot = new T.Object3D(); pivot.position.set(0.30, 0, 0.24);      // 손잡이 회전축(밸브 중심)
@@ -311,13 +313,13 @@ AFRAME.registerComponent('iv-set', {
     });
     this.data.threeway.appendChild(m3);
     // 클릭이 잘 되도록 보이지 않는 넓은 상자
-    const hit = new T.Mesh(new T.BoxGeometry(0.13,0.08,0.11), new T.MeshBasicMaterial({visible:false})); g.add(hit);
+    const hit = new T.Mesh(new T.BoxGeometry(0.2,0.1,0.14), new T.MeshBasicMaterial({visible:false})); g.add(hit);
     // PCA 라인 표시 꼬리표(노란색)
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128; const c2 = cv.getContext('2d');
     c2.fillStyle = '#ffd400'; c2.fillRect(0,0,256,128); c2.fillStyle = '#111'; c2.font = 'bold 84px sans-serif';
     c2.textAlign = 'center'; c2.textBaseline = 'middle'; c2.fillText('PCA', 128, 68);
     const tt = new T.CanvasTexture(cv); tt.colorSpace = T.SRGBColorSpace;
-    this.tag = new T.Mesh(new T.PlaneGeometry(0.05,0.025), new T.MeshBasicMaterial({map: tt, side: T.DoubleSide, toneMapped:false}));
+    this.tag = new T.Mesh(new T.PlaneGeometry(0.07,0.035), new T.MeshBasicMaterial({map: tt, side: T.DoubleSide, toneMapped:false}));
     this.el.sceneEl.object3D.add(this.tag);
     this.data.threeway.setObject3D('mesh', g);
     this.data.threeway.addEventListener('click', () => openItem('e5'));
@@ -349,12 +351,12 @@ AFRAME.registerComponent('iv-set', {
     const key = [A,P,S,PIN,POUT].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
     if (key === this.last) return; this.last = key;
     // 3-way 위치: 인퓨전펌프 → 오른팔 주 수액선의 가운데쯤, 침대 높이보다 살짝 위 (학습자가 잘 보이게)
-    const W = POUT.clone().lerp(S, 0.5); W.y = Math.max(S.y, POUT.y) + 0.05;
+    const W = POUT.clone().lerp(S, 0.45); W.y = Math.max(S.y, POUT.y) + 0.12;   // 침대 난간·매트리스에 가리지 않게 조금 높이
     const X = new V(POUT.x - W.x, 0, POUT.z - W.z).normalize(), Z = new V(0, 1, 0), Y = new V().crossVectors(Z, X);
     const tw = this.data.threeway.object3D;
     tw.position.copy(W); tw.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z)); tw.updateMatrixWorld(true);
-    const inPort = tw.localToWorld(new V(0.0625,0,0)), outPort = tw.localToWorld(new V(-0.0325,0,0)),   // threeway.glb 포트 끝
-          sidePort = tw.localToWorld(new V(0,0,0.0365));
+    const s3 = this.S3, inPort = tw.localToWorld(new V(1.25 * s3,0,0)), outPort = tw.localToWorld(new V(-0.65 * s3,0,0)),   // threeway.glb 포트 끝
+          sidePort = tw.localToWorld(new V(0,0,0.73 * s3));
     const sag = (a, b, d) => { const m = a.clone().lerp(b, 0.5); m.y = Math.min(a.y, b.y) - d; return m; };
     this.tube('bag2pump', [A, sag(A, PIN, 0.06), PIN]);              // 수액백 → 인퓨전펌프
     this.tube('main', [POUT, sag(POUT, inPort, 0.06), inPort]);      // 인퓨전펌프 → 3-way
