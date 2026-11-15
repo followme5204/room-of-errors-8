@@ -294,6 +294,7 @@ AFRAME.registerComponent('iv-set', {
   init: function () {
     const T = THREE;
     this.tubeMat = new T.MeshStandardMaterial({ color:'#f2f6f8', roughness:0.4, transparent:true, opacity:0.85 });
+    this.pcaMat = new T.MeshStandardMaterial({ color:'#ffe066', roughness:0.4 });   // PCA 라인: 노란빛으로 구분 (따라가 보기 쉽게)
     this.tubes = {}; this.last = ''; this.box = new T.Box3();
     // 3-way 모양 (학습자가 잘 보이도록 실제보다 약 1.5배): 흰 몸통 + 주 라인 포트 2개(x축) + PCA 옆 포트(z축, 위쪽) + 파란 손잡이(y축 쪽)
     const g = new T.Group(), white = new T.MeshStandardMaterial({color:'#ffffff', roughness:0.3}),
@@ -332,10 +333,10 @@ AFRAME.registerComponent('iv-set', {
     out.set((this.box.min.x+this.box.max.x)/2, this.box.min.y, (this.box.min.z+this.box.max.z)/2); return true;
   },
   bone: function (root, n) { return root.getObjectByName('mixamorig'+n) || root.getObjectByName('mixamorig:'+n); },
-  tube: function (key, pts) {
-    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, 0.004, 6, false);
+  tube: function (key, pts, mat, r) {
+    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, r || 0.004, 8, false);
     if (this.tubes[key]) { this.tubes[key].geometry.dispose(); this.tubes[key].geometry = geo; }
-    else { this.tubes[key] = new THREE.Mesh(geo, this.tubeMat); this.el.sceneEl.object3D.add(this.tubes[key]); }
+    else { this.tubes[key] = new THREE.Mesh(geo, mat || this.tubeMat); this.el.sceneEl.object3D.add(this.tubes[key]); }
   },
   tick: function () {
     const V = THREE.Vector3, A = new V(), P = new V(), S = new V(), H = new V();
@@ -359,8 +360,10 @@ AFRAME.registerComponent('iv-set', {
     const sag = (a, b, d) => { const m = a.clone().lerp(b, 0.5); m.y = Math.min(a.y, b.y) - d; return m; };
     this.tube('bag2pump', [A, sag(A, PIN, 0.06), PIN]);              // 수액백 → 인퓨전펌프
     this.tube('main', [POUT, sag(POUT, inPort, 0.06), inPort]);      // 인퓨전펌프 → 3-way
-    const pUp = sidePort.clone(); pUp.y += 0.12;                     // PCA 라인은 위에서 내려와 옆 포트(위쪽)로 들어감
-    this.tube('pca',  [P, sag(P, pUp, 0.05), pUp, sidePort]);        // PCA → 3-way 옆 포트
+    // PCA 라인: PCA 아래 끝 → 인퓨전펌프 위를 넘어(펌프에 가리지 않게) → 3-way 바로 위에서 내려와 옆 포트로
+    const pUp = sidePort.clone(); pUp.y += 0.1;
+    const over = P.clone().lerp(pUp, 0.4); over.y = Math.max(PIN.y + 0.08, pUp.y + 0.12);
+    this.tube('pca', [P, P.clone().setY(P.y - 0.04), over, pUp, sidePort], this.pcaMat, 0.0045);
     this.tag.position.copy(sidePort).add(new V(0, 0.09, 0));         // PCA 꼬리표: 3-way 바로 위 PCA 라인에
     this.tag.rotation.set(0, Math.atan2(1, 0.6), 0);                 // 출입문 쪽에서 잘 읽히는 방향
     this.tube('site', [outPort, sag(outPort, S, 0.04), S]);          // 3-way → 오른팔
