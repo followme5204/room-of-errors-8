@@ -487,23 +487,34 @@ AFRAME.registerComponent('jp-drain', {
   }
 });
 
-/* 오른팔 말초정맥관 드레싱: 투명 필름(테가덤) + 18G 카테터 허브(초록) + 라벨(날짜·게이지·시간)
+/* 오른팔 말초정맥관 드레싱: 테가덤 I.V.(흰 테두리 + 투명 창 + 카테터 홈·고정 띠) + 18G 카테터 허브(초록) + 라벨(날짜·게이지·시간)
    삽입 부위 = 아래팔~손등 사이(수액 줄이 들어가는 곳). 필름은 팔 곡면을 따라 살짝 휘게 붙임 */
 AFRAME.registerComponent('iv-dressing', {
   schema: { patient: {type: 'selector'}, label: {default: '12/14 18G 2pm'} },
   init: function () {
-    const T = THREE, W = 0.06, L = 0.07;                 // 필름 크기: 폭 6cm × 길이 7cm (팔 방향)
-    // 필름 그림: 투명한 창 + 흰 테두리 + 아래쪽 라벨 띠(글씨)
-    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 600;
+    const T = THREE, W = 0.068, L = 0.085;               // 필름 크기: 폭 6.8cm × 길이 8.5cm (팔 방향)
+    // 테가덤 I.V. 모양: 흰 부직포 테두리 + 둥근 투명 창 + 손 쪽 카테터 홈(노치) + 고정 띠 + 팔꿈치 쪽 라벨(날짜·게이지·시간)
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 640;
     const g = cv.getContext('2d');
-    g.clearRect(0, 0, 512, 600);
-    g.fillStyle = 'rgba(235,245,255,0.22)'; g.fillRect(0, 0, 512, 600);              // 투명 필름
-    g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 26; g.strokeRect(13, 13, 486, 574);   // 테두리
-    g.fillStyle = 'rgba(255,255,255,0.97)'; g.fillRect(0, 470, 512, 130);             // 라벨 띠
-    g.fillStyle = '#1b2a6b'; g.font = 'bold 66px "Segoe Print","Comic Sans MS",cursive,sans-serif';
+    const rr = (x0, y0, w, h, r) => { g.beginPath(); g.moveTo(x0 + r, y0); g.arcTo(x0 + w, y0, x0 + w, y0 + h, r); g.arcTo(x0 + w, y0 + h, x0, y0 + h, r);
+      g.arcTo(x0, y0 + h, x0, y0, r); g.arcTo(x0, y0, x0 + w, y0, r); g.closePath(); };
+    g.clearRect(0, 0, 512, 640);
+    rr(4, 4, 504, 632, 60); g.fillStyle = 'rgba(252,252,249,0.97)'; g.fill();                       // 흰 부직포 테두리
+    g.fillStyle = 'rgba(200,205,215,0.25)'; for (let k = 0; k < 1400; k++) g.fillRect(Math.random() * 512, Math.random() * 640, 2, 2);   // 부직포 결
+    g.save(); rr(58, 58, 396, 410, 90); g.clip(); g.clearRect(0, 0, 512, 640);                      // 둥근 투명 창
+    g.fillStyle = 'rgba(232,242,252,0.16)'; g.fillRect(0, 0, 512, 640);
+    g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 3;                                     // 필름 반사광
+    g.beginPath(); g.moveTo(120, 110); g.quadraticCurveTo(200, 80, 300, 100); g.stroke(); g.restore();
+    g.save(); g.globalCompositeOperation = 'destination-out';                                       // 손 쪽(위) 카테터 홈(노치)
+    rr(214, -40, 84, 140, 40); g.fill(); g.restore();
+    g.fillStyle = 'rgba(255,255,255,0.97)'; rr(150, 150, 212, 58, 10); g.fill();                    // 카테터 고정 띠
+    g.strokeStyle = 'rgba(150,160,175,0.6)'; g.lineWidth = 2; for (let k = 0; k < 8; k++) { g.beginPath(); g.moveTo(170 + k * 24, 160); g.lineTo(170 + k * 24, 198); g.stroke(); }
+    g.fillStyle = 'rgba(255,255,255,0.98)'; rr(40, 488, 432, 130, 22); g.fill();                    // 라벨 띠
+    g.strokeStyle = 'rgba(120,130,150,0.5)'; g.lineWidth = 2; rr(40, 488, 432, 130, 22); g.stroke();
+    g.fillStyle = '#1b2a6b';
     let fs = 70; do { g.font = 'bold ' + fs + 'px "Segoe Print","Comic Sans MS",cursive,sans-serif'; fs -= 2; }
-    while (g.measureText(this.data.label).width > 460 && fs > 20);                  // 띠 안에 들어가게 글씨 크기 맞춤
-    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(this.data.label, 256, 537);
+    while (g.measureText(this.data.label).width > 400 && fs > 20);                                  // 띠 안에 들어가게 글씨 크기 맞춤
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(this.data.label, 256, 555);
     const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
     const geo = new T.PlaneGeometry(W, L, 12, 1); geo.rotateX(-Math.PI / 2);         // 눕힘: 폭=x, 길이=z
     geo.rotateY(-Math.PI / 2);                                                        // 길이 방향을 x(팔 방향)로, 라벨 띠는 팔꿈치 쪽
