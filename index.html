@@ -31,7 +31,7 @@
 const BED = { x: 0, z: -2.45, top: 0.593 };      // 침대 가운데와 매트리스 윗면 높이
 const PILLOW = { z: -3.17, top: 0.713 };        // 베개 위치와 윗면 높이
 AFRAME.registerComponent('pose-clip', {
-  schema: { time: {type: 'number', default: 11.4} },   // 몇 초 지점의 자세로 멈출지
+  schema: { time: {type: 'number', default: 11.4}, hob: {type: 'number', default: 0} },   // time: 몇 초 지점의 자세 · hob: 침상머리 각도(상체를 일으킴, 도)
   init: function () {
     this.el.addEventListener('model-loaded', (e) => {
       this.model = e.detail.model;
@@ -45,8 +45,18 @@ AFRAME.registerComponent('pose-clip', {
       document.getElementById('msg').textContent = '환자 모델(patient.glb)을 불러오지 못했어요.';
     });
   },
-  update: function () { this.apply(); },
+  update: function (old) {
+    if (!old || old.time !== this.data.time) this.apply();
+    this.applyHob();
+  },
   apply: function () { if (this.mixer) this.mixer.setTime(this.data.time); },
+  applyHob: function () {   // 침상머리 각도만큼 허리(Spine) 관절에서 상체를 일으킴 (팔·머리도 함께 따라옴)
+    if (!this.model || !this.spine0) return;
+    const sp = this.model.getObjectByName('mixamorigSpine') || this.model.getObjectByName('mixamorig:Spine'); if (!sp) return;
+    sp.quaternion.copy(this.spine0);
+    if (this.data.hob) this.rotWorld(sp, new THREE.Vector3(1, 0, 0), this.data.hob * Math.PI / 180);
+    this.el.object3D.updateMatrixWorld(true);
+  },
   boneBox: function () {        // 뼈대(관절) 위치로 몸이 차지하는 범위를 계산
     const box = new THREE.Box3(), v = new THREE.Vector3();
     this.el.object3D.updateMatrixWorld(true);
@@ -113,6 +123,8 @@ AFRAME.registerComponent('pose-clip', {
           z = p.z + PILLOW.z - head.z,
           y = p.y + (BED.top + 0.11) - hips.y;     // 엉덩이 관절이 매트리스보다 약 11cm 위 (몸 두께)
     this.el.setAttribute('position', {x: +x.toFixed(3), y: +y.toFixed(3), z: +z.toFixed(3)});
+    const sp = this.model.getObjectByName('mixamorigSpine') || this.model.getObjectByName('mixamorig:Spine');
+    if (sp) { this.spine0 = sp.quaternion.clone(); this.applyHob(); }      // 누운 자세 기준 저장 → 침상머리 각도 적용
     if (window.onPatientPlaced) window.onPatientPlaced();
   },
   rotWorld: function (bone, axis, ang) {   // 관절을 세계 기준 축으로 돌림
@@ -132,7 +144,7 @@ AFRAME.registerComponent('bed-rails', {
   update: function () {
     if (!this.ready) return;
     this.el.getObject3D('mesh').traverse(o => {
-      if (!o.isMesh) return;
+      if (!o.isMesh || o.userData.noRail) return;
       const pos = o.geometry.attributes.position;
       if (!this.orig) this.orig = pos.array.slice();
       for (let i = 0; i < pos.count; i++) {
@@ -154,7 +166,7 @@ AFRAME.registerComponent('bed-rails', {
     const V = THREE.Vector3, o3 = this.el.object3D; o3.updateMatrixWorld(true);
     const R = new THREE.Box3(), L = new THREE.Box3(), v = new V();
     this.el.getObject3D('mesh').traverse(o => {
-      if (!o.isMesh) return;
+      if (!o.isMesh || o.userData.noRail) return;
       const pos = o.geometry.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const x = this.orig[i*3], y = this.orig[i*3+1], z = this.orig[i*3+2];
@@ -378,7 +390,10 @@ AFRAME.registerComponent('iv-set', {
     // 3-way 위치: 인퓨전펌프 → 오른팔 주 수액선의 가운데쯤, 침대 높이보다 살짝 위 (학습자가 잘 보이게)
     // 3-way 위치: 환자 오른쪽 팔꿈치 바깥쪽 매트리스 위(시트 위에 놓임) — 폴대 쪽 시점에서 잘 보이는 곳
     const elbow = fore.getWorldPosition(new V());
-    const W = new V(elbow.x - 0.15, (typeof BED !== 'undefined' ? BED.top : S.y - 0.05) + 0.03, elbow.z + 0.04);
+    const W = new V(elbow.x - 0.15, BED.top + 0.03, elbow.z + 0.04);
+    const bt = document.getElementById('bed').components['bed-tilt'];
+    if (bt && bt.foot) { this.ray = this.ray || new THREE.Raycaster(); this.ray.set(new V(W.x, 2.5, W.z), new V(0, -1, 0));
+      const hb = this.ray.intersectObjects([bt.foot, bt.head], false)[0]; if (hb) W.y = hb.point.y + 0.03; }   // 매트리스 윗면 위 (침상머리를 올려도)
     const X = new V(POUT.x - W.x, 0, POUT.z - W.z).normalize(), Z = new V(0, 1, 0), Y = new V().crossVectors(Z, X);
     const tw = this.data.threeway.object3D;
     tw.position.copy(W); tw.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z)); tw.updateMatrixWorld(true);
@@ -412,6 +427,7 @@ AFRAME.registerComponent('jp-drain', {
     this.tape = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.003, 0.028), new THREE.MeshStandardMaterial({ color: '#f4f1ea', roughness: 0.9 }));
     this.tape.visible = false; this.el.sceneEl.object3D.add(this.tape);   // line을 환자복에 고정한 테이프 (교정 후)
     this.el.addEventListener('click', () => { if (window.openItem) openItem('e3'); });
+    this.el.sceneEl.addEventListener('bedtilt', () => { this.placed = false; this.still = 0; this.last = ''; this.hemKey = ''; this.ruqKey = ''; });   // 침상 각도가 바뀌면 다시 놓음
   },
   update: function () {   // 교정되면: 부푼 bulb 숨기고 같은 자리의 압축 bulb를 보여 줌 (모델을 새로 불러오지 않아 사라지지 않음)
     this.el.setAttribute('visible', !this.data.fixed);
@@ -991,14 +1007,30 @@ AFRAME.registerComponent('bed-remote', {
     const face = new T.Mesh(new T.PlaneGeometry(0.064, 0.144), new T.MeshBasicMaterial({ map: this.tex, toneMapped: false }));
     face.rotation.x = -Math.PI / 2; face.position.y = 0.0115;
     const g = new T.Group(); g.add(body); g.add(face);
-    // 리모컨 줄: 매트리스 가장자리로 넘어가 침대 아래로
-    const cord = new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3([new T.Vector3(0, 0, -0.08), new T.Vector3(-0.03, 0.005, -0.13),
-      new T.Vector3(-0.12, 0.01, -0.12), new T.Vector3(-0.16, -0.06, -0.1), new T.Vector3(-0.17, -0.2, -0.08)]), 24, 0.0025, 6, false),
-      new T.MeshStandardMaterial({ color: '#8a9099', roughness: 0.6 }));
-    g.add(cord);
+    this.cordMat = new T.MeshStandardMaterial({ color: '#8a9099', roughness: 0.6 }); this.cord = null; this.cordKey = '';
     g.add(new T.Mesh(new T.BoxGeometry(0.13, 0.06, 0.22), new T.MeshBasicMaterial({ visible: false })));   // 클릭 영역
     this.el.setObject3D('mesh', g);
     this.el.addEventListener('click', () => { if (window.openItem) openItem('e7'); });
+  },
+  // 리모컨 줄: 리모컨 → 매트리스 가장자리 → 침대 옆으로 내려가 바닥 가까이 → 머리 쪽 벽 콘센트(벽 아래쪽)에 꽂힘
+  tick: function () {
+    const wall = document.getElementById('headwall'); if (!wall) return;
+    const V = THREE.Vector3, o = this.el.object3D; o.updateMatrixWorld(true);
+    const wz = wall.object3D.position.z, start = o.localToWorld(new V(0, 0, -0.08));
+    const key = start.toArray().map(q => q.toFixed(3)).join() + wz.toFixed(3); if (key === this.cordKey) return; this.cordKey = key;
+    const ox = -0.62, oy = 0.32, oz = wz + 0.012;                            // 콘센트 위치 (머리 쪽 벽, 침대 오른쪽 옆)
+    if (!this.outlet) {
+      this.outlet = new THREE.Group();
+      this.outlet.add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.012), new THREE.MeshStandardMaterial({ color: '#f6f6f3' })));
+      const plug = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.045, 0.03), new THREE.MeshStandardMaterial({ color: '#3a3d42' })); plug.position.set(0, 0.02, 0.02); this.outlet.add(plug);
+      this.el.sceneEl.object3D.add(this.outlet);
+    }
+    this.outlet.position.set(ox, oy, oz);
+    const pts = [start, new V(start.x - 0.06, start.y + 0.01, start.z - 0.04), new V(-0.52, BED.top - 0.02, start.z - 0.1),
+      new V(-0.58, 0.22, start.z - 0.25), new V(-0.6, 0.12, (start.z + oz) / 2), new V(ox, 0.2, oz + 0.08), new V(ox, oy + 0.02, oz + 0.035)];
+    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, 0.0025, 6, false);
+    if (this.cord) { this.cord.geometry.dispose(); this.cord.geometry = geo; }
+    else { this.cord = new THREE.Mesh(geo, this.cordMat); this.el.sceneEl.object3D.add(this.cord); }
   },
   update: function () {
     const g = this.cv.getContext('2d'), a = this.data.angle;
@@ -1013,6 +1045,53 @@ AFRAME.registerComponent('bed-remote', {
       g.font = 'bold 22px sans-serif'; g.fillText(label, 128, y + 50); };
     btn(250, '등판 (HEAD)'); btn(370, '다리 (KNEE)'); btn(490, '높이 (BED)');
     this.tex.needsUpdate = true;
+  }
+});
+
+/* 침상머리 각도: 원래 침대 매트리스(bed.glb의 mattress 부분)를 빼고, 발 쪽·머리 쪽 두 칸 매트리스를 코드로 만들어
+   머리 쪽 칸을 경첩(환자 허리 높이)에서 angle도만큼 올림. 환자 상체(pose-clip hob)와 베개도 같이 올라감 (E7: 0° → 교정 30°) */
+AFRAME.registerComponent('bed-tilt', {
+  schema: { angle: {default: 0}, patient: {type: 'selector'}, pillow: {type: 'selector'} },
+  init: function () {
+    this.el.addEventListener('model-loaded', () => {
+      const sc = this.el.getObject3D('mesh'), old = sc.getObjectByName('mattress');
+      if (old && old.parent) old.parent.remove(old);                        // 원래 매트리스 제거 (클릭·높이 계산에서도 빠지게)
+      const mat = new THREE.MeshStandardMaterial({ color: '#73a7d6', roughness: 0.6 });
+      this.foot = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+      this.head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+      this.pivot = new THREE.Object3D(); this.pivot.add(this.head);
+      [this.foot, this.head].forEach(m => { m.userData.noRail = true; });
+      sc.add(this.foot); sc.add(this.pivot);
+      this.ready = true; this.hx = 0.25; this.build(); this.update();
+    });
+  },
+  // 매트리스 크기(모델 좌표): x -0.85~0.85(머리 쪽 +x), y 0.054~0.17, z ±0.355
+  build: function () {
+    const X0 = -0.85, X1 = 0.85, Y0 = 0.054, Y1 = 0.17, Wz = 0.71, h = this.hx;
+    this.foot.scale.set(h - X0, Y1 - Y0, Wz); this.foot.position.set((X0 + h) / 2, (Y0 + Y1) / 2, 0);
+    this.pivot.position.set(h, Y1, 0);                                       // 경첩: 매트리스 윗면
+    this.head.scale.set(X1 - h, Y1 - Y0, Wz); this.head.position.set((X1 - h) / 2, -(Y1 - Y0) / 2, 0);
+  },
+  update: function () {
+    if (!this.ready) return;
+    const a = this.data.angle * Math.PI / 180, sc = this.el.getObject3D('mesh');
+    // 경첩 위치: 환자 허리(Spine 관절)와 같은 곳
+    const pt = this.data.patient && this.data.patient.getObject3D('mesh');
+    const sp = pt && (pt.getObjectByName('mixamorigSpine') || pt.getObjectByName('mixamorig:Spine'));
+    if (sp) { sc.updateMatrixWorld(true); const lp = sc.worldToLocal(sp.getWorldPosition(new THREE.Vector3())); this.hx = Math.max(-0.3, Math.min(0.6, lp.x)); this.build(); }
+    this.pivot.rotation.set(0, 0, a);                                        // 머리 쪽(+x) 칸을 들어 올림
+    // 베개: 경첩을 중심으로 같이 돌림
+    const pl = this.data.pillow;
+    if (pl) {
+      if (!this.pl0) { const p = pl.getAttribute('position'); this.pl0 = new THREE.Vector3(p.x, p.y, p.z); }
+      sc.updateMatrixWorld(true); const hw = sc.localToWorld(new THREE.Vector3(this.hx, 0.17, 0));
+      const d = this.pl0.clone().sub(hw).applyAxisAngle(new THREE.Vector3(1, 0, 0), a);
+      const np = hw.clone().add(d);
+      pl.setAttribute('position', { x: +np.x.toFixed(3), y: +np.y.toFixed(3), z: +np.z.toFixed(3) });
+      pl.setAttribute('rotation', { x: +(this.data.angle).toFixed(1), y: 0, z: 0 });
+    }
+    if (this.data.patient) this.data.patient.setAttribute('pose-clip', 'hob', this.data.angle);
+    this.el.sceneEl.emit('bedtilt', { angle: this.data.angle });
   }
 });
 
@@ -1114,7 +1193,7 @@ function showMsg(html){
   <!-- 병실: 바닥·벽·창문 -->
   <!-- 바닥: 대리석 타일 (60cm 타일, 그림은 코드로 생성) -->
   <a-plane rotation="-90 0 0" width="8" height="8" position="0 0 -2" marble-floor></a-plane>
-  <a-plane class="onwall" width="8" height="3" color="#ece5d8" position="0 1.5 -4.2"></a-plane>
+  <a-plane id="headwall" class="onwall" width="8" height="3" color="#ece5d8" position="0 1.5 -4.2"></a-plane>
   <a-plane width="8" height="3" color="#ece5d8" position="-2.3 1.5 -2" rotation="0 90 0"></a-plane>
   <a-plane width="8" height="3" color="#ece5d8" position="2.1 1.5 -2" rotation="0 -90 0"></a-plane>
   <!-- 앞쪽 벽(침대 발치 너머)과 천장: 방을 닫아서 벽 밖 빈 공간이 보이지 않게 -->
@@ -1202,9 +1281,9 @@ function showMsg(html){
 
   <!-- 침대 (bed.glb): 전동 병원침대, 길이 약 2.1m · 머리 쪽이 벽 · 매트리스 윗면 높이 약 0.59m
        bed-rails rightDown: true = 환자 오른쪽 난간 내려감 / false = 올라감 -->
-  <a-entity id="bed" gltf-model="url(bed.glb)" snap-wall="gap: 0.02" bed-rails="rightDown: true" scale="1.104 1.104 1.104" position="0 0.411 -2.45" rotation="0 90 0"></a-entity>
+  <a-entity id="bed" gltf-model="url(bed.glb)" snap-wall="gap: 0.02" bed-tilt="angle: 0; patient: #patient; pillow: #pillow" bed-rails="rightDown: true" scale="1.104 1.104 1.104" position="0 0.411 -2.45" rotation="0 90 0"></a-entity>
   <!-- 베개: 볼록한 베개 + 흰 바탕에 작은 CAU 글씨가 반복된 병원 베갯잇 -->
-  <a-sphere radius="1" scale="0.32 0.065 0.2" position="0 0.648 -3.17" segments-width="36" segments-height="18" pillowcase></a-sphere>
+  <a-sphere id="pillow" radius="1" scale="0.32 0.065 0.2" position="0 0.648 -3.17" segments-width="36" segments-height="18" pillowcase></a-sphere>
 
   <!-- 환자 (patient.glb) -->
   <a-entity id="patient" gltf-model="url(patient.glb)" pose-clip="time: 11.4"
@@ -1351,8 +1430,8 @@ function showMsg(html){
   <!-- 난간 클릭 영역(보이지 않음): 오른쪽 난간 = E8 오류(내려감) / 왼쪽 난간 = 정상 항목. 위치는 bed-rails가 잡아 줌 -->
   <a-entity id="railR" class="clickable"></a-entity>
   <a-entity id="railL" class="clickable"></a-entity>
-  <!-- 침대 리모컨: 매트리스 위 환자 오른쪽 어깨 옆. 화면 = 침상머리 각도 (E7: 0°, 교정하면 30°). 클릭 → 팝업 -->
-  <a-entity id="remote" class="clickable" bed-remote="angle: 0" position="-0.34 0.606 -3.32" rotation="0 12 0"></a-entity>
+  <!-- 침대 리모컨: 매트리스 발 쪽 칸 위 환자 오른쪽 허벅지 옆, 줄은 머리 쪽 벽 콘센트에 꽂힘. 화면 = 침상머리 각도 (E7: 0°, 교정하면 30°). 클릭 → 팝업 -->
+  <a-entity id="remote" class="clickable" bed-remote="angle: 0" position="-0.36 0.606 -1.95" rotation="0 12 0"></a-entity>
   <!-- ARM SAVE 밴드: 환자 왼쪽 손목 (Lt. arm save 표시, 분홍 실리콘 밴드) -->
   <a-entity id="armband" arm-band="patient: #patient; side: Left; text: ARM SAVE"></a-entity>
   <!-- 환자 확인 손목밴드: 오른쪽 손목, 흰 밴드에 이름·등록번호·바코드. 등록번호 10234576 = 차트(10234567)와 다름 → E1 오류. 클릭 → 팝업 -->
@@ -1522,7 +1601,7 @@ function applyFix(id){   // 교정된 모습으로 바꾸기
   if (id === 'e4') document.querySelector('[pump-screen]').setAttribute('pump-screen', 'rate', 80);
   if (id === 'e5') { st.e5At = st.t; document.querySelector('[iv-set]').setAttribute('iv-set', 'pcaClosed', false); }
   if (id === 'e6') $r('cuff').setAttribute('bp-cuff', 'side', 'right');
-  if (id === 'e7') $r('remote').setAttribute('bed-remote', 'angle', 30);   // 리모컨으로 침상머리 30°
+  if (id === 'e7') { $r('remote').setAttribute('bed-remote', 'angle', 30); $r('bed').setAttribute('bed-tilt', 'angle', 30); }   // 리모컨으로 침상머리 30° → 침대·환자 상체 올라감
   if (id === 'e8') $r('bed').setAttribute('bed-rails', 'rightDown', false); // 환자 오른쪽 난간 올림
   if (id === 'e3') $r('jp').setAttribute('jp-drain', 'fixed', true);
 }
