@@ -372,7 +372,7 @@ AFRAME.registerComponent('iv-set', {
     const fore = this.bone(pt,'RightForeArm'), hand = this.bone(pt,'RightHand'); if (!fore || !hand) return;
     fore.getWorldPosition(S); hand.getWorldPosition(H); S.lerp(H, 0.35);         // 주입 부위: 아래팔(손목밴드보다 팔꿈치 쪽)
     const site = document.getElementById('ivsite').object3D; site.updateMatrixWorld(true);
-    const HUB = site.localToWorld(new V(0.024, 0.003, 0)), APP = site.localToWorld(new V(0.075, 0.012, 0));   // 카테터 허브 끝 / 손 쪽에서 들어오는 줄
+    const HUB = site.localToWorld(new V(0.024, 0.003, 0)), APP = site.localToWorld(new V(0.05, 0.016, 0));    // 카테터 허브 끝 / 테가덤 홈(손 쪽)으로 들어오는 줄
     const key = [A,P,S,PIN,POUT,HUB].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
     if (key === this.last) return; this.last = key;
     // 3-way 위치: 인퓨전펌프 → 오른팔 주 수액선의 가운데쯤, 침대 높이보다 살짝 위 (학습자가 잘 보이게)
@@ -393,7 +393,8 @@ AFRAME.registerComponent('iv-set', {
     this.tube('pca', [P, P.clone().setY(P.y - 0.04), over, pUp, sidePort], this.pcaMat, 0.0045);
     this.tag.position.copy(sidePort).add(new V(0, 0.09, 0));         // PCA 꼬리표: 3-way 바로 위 PCA 라인에
     this.tag.rotation.set(0, Math.atan2(1, 0.6), 0);                 // 출입문 쪽에서 잘 읽히는 방향
-    this.tube('site', [outPort, sag(outPort, APP, 0.03), APP, HUB]);  // 3-way → 손 쪽에서 테가덤 안 카테터 허브로
+    const APP2 = APP.clone().lerp(outPort, 0.15);
+    this.tube('site', [outPort, sag(outPort, APP2, 0.03), APP2, APP, HUB]);  // 3-way → 테가덤 홈으로 들어가 카테터 허브에 연결
   }
 });
 /* JP 배액관: 환자 오른쪽 상복부(RUQ)에서 나온 배액관이 환자 오른쪽 옆 매트리스 위 JP bulb로 연결됨.
@@ -555,6 +556,9 @@ AFRAME.registerComponent('iv-dressing', {
     const green = new T.MeshStandardMaterial({ color: '#2e9e4f', roughness: 0.4 });
     const body = new T.Mesh(new T.CylinderGeometry(0.0035, 0.0045, 0.022, 14), green); body.rotation.z = Math.PI / 2; this.hub.add(body);
     const wing = new T.Mesh(new T.BoxGeometry(0.01, 0.0012, 0.02), green); wing.position.x = 0.004; this.hub.add(wing);
+    // 카테터(바늘 대신 들어간 가는 관): 허브에서 팔꿈치 쪽으로 피부 속으로 살짝 비스듬히 들어감 (필름 너머로 보임)
+    const cath = new T.Mesh(new T.CylinderGeometry(0.0008, 0.0009, 0.022, 8), new T.MeshStandardMaterial({ color: '#f4f8fb', roughness: 0.3, transparent: true, opacity: 0.9 }));
+    cath.rotation.z = Math.PI / 2 + 0.12; cath.position.set(-0.021, -0.0018, 0); this.hub.add(cath);
     this.grp = new T.Group(); this.grp.add(this.film); this.grp.add(this.hub);
     const hitIV = new T.Mesh(new T.BoxGeometry(0.075, 0.02, 0.06), new T.MeshBasicMaterial({ visible: false }));   // 클릭 영역: 테가덤 크기만큼만
     hitIV.position.set(0.004, 0.004, 0); this.grp.add(hitIV);                                                        // (손목밴드 클릭을 가리지 않게)
@@ -569,14 +573,16 @@ AFRAME.registerComponent('iv-dressing', {
     const key = [F, H].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
     if (key === this.last) return; this.last = key;
     const S = F.clone().lerp(H, 0.35);                      // 삽입 부위: 아래팔 (손목밴드보다 팔꿈치 쪽)
-    const dir = new V(H.x - F.x, 0, H.z - F.z).normalize();  // 팔 방향 (팔꿈치 → 손)
-    // 팔 윗면 높이: 위에서 아래로 쏘아 팔 표면 찾기 (못 찾으면 뼈 위 2.5cm)
-    this.ray.set(new V(S.x, S.y + 0.4, S.z), new V(0, -1, 0));
-    const hit = this.ray.intersectObject(pt, true).find(h => h.point.y < S.y + 0.15);
-    const top = hit ? hit.point.y : S.y + 0.025;
+    const axis = H.clone().sub(F).normalize();               // 팔 방향(팔꿈치 → 손), 팔이 기울어져 있어도 그대로 따라감
+    const n = new V(0, 1, 0).addScaledVector(axis, -axis.y).normalize();   // 팔 윗면 방향 (팔 축에 수직인 위쪽)
+    // 팔 윗면: 팔 바깥 위에서 팔 쪽으로 쏘아 피부 표면 찾기 (못 찾으면 뼈에서 2.5cm)
+    this.ray.set(S.clone().addScaledVector(n, 0.3), n.clone().negate());
+    const hit = this.ray.intersectObject(pt, true).find(h => h.distance < 0.32);
+    const top = hit ? hit.point : S.clone().addScaledVector(n, 0.025);
     const o = this.el.object3D;
-    o.position.set(S.x, top + 0.003, S.z);
-    o.rotation.set(0, Math.atan2(-dir.z, dir.x), 0);        // 필름 길이 방향 = 팔 방향(+x = 손 쪽)
+    o.position.copy(top).addScaledVector(n, 0.003);
+    const Z = new V().crossVectors(axis, n).normalize();
+    o.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(axis, n, Z));   // 필름: x = 팔 방향(손 쪽), y = 피부 바깥쪽
     this.film.position.set(0.004, 0, 0);                     // 삽입 부위~허브가 필름 투명 창 안에 오도록
     this.hub.position.set(0.012, 0.002, 0);                  // 카테터는 팔꿈치(심장) 쪽으로 들어가고, 허브는 손 쪽에 있음
   }
