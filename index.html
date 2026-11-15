@@ -980,9 +980,9 @@ function showMsg(html){
 <div id="roeResult" class="hidden"><div class="card" id="roeResultBody"></div></div>
 <div id="views" style="position:fixed;top:48px;right:8px;z-index:11;display:flex;flex-direction:column;gap:6px">
     <button onclick="startView()" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">폴대 쪽에서 보기(처음 시점)</button>
-  <button onclick="setView(2.45,0.3,38,-10,1.6)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">출입문에서 보기</button>
-  <button onclick="setView(2.2,-1.2,57)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">침대 반대편에서 보기</button>
-  <button onclick="setView(1.3,-0.4,-90)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">출입문·손씻기 구역 보기</button>
+  <button onclick="setView(1.45,-0.4,35,-12,1.6)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">출입문에서 보기</button>
+  <button onclick="setView(1.55,-1.3,53,-12,1.6)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">침대 반대편에서 보기</button>
+  <button onclick="setView(0.85,-1.0,-90,-5,1.6)" style="padding:7px 10px;border:0;border-radius:8px;background:#fff">출입문·손씻기 구역 보기</button>
 </div>
 <button id="toggle">조절창 숨기기</button>
 <div id="panel">
@@ -1030,43 +1030,43 @@ function showMsg(html){
   <!-- 바닥: 대리석 타일 (60cm 타일, 그림은 코드로 생성) -->
   <a-plane rotation="-90 0 0" width="8" height="8" position="0 0 -2" marble-floor></a-plane>
   <a-plane class="onwall" width="8" height="3" color="#ece5d8" position="0 1.5 -4.2"></a-plane>
-  <a-plane width="8" height="3" color="#ece5d8" position="-3.2 1.5 -2" rotation="0 90 0"></a-plane>
-  <a-plane width="8" height="3" color="#ece5d8" position="3.2 1.5 -2" rotation="0 -90 0"></a-plane>
+  <a-plane width="8" height="3" color="#ece5d8" position="-2.3 1.5 -2" rotation="0 90 0"></a-plane>
+  <a-plane width="8" height="3" color="#ece5d8" position="2.1 1.5 -2" rotation="0 -90 0"></a-plane>
   <!-- 앞쪽 벽(침대 발치 너머)과 천장: 방을 닫아서 벽 밖 빈 공간이 보이지 않게 -->
-  <a-plane width="6.4" height="3" color="#ece5d8" position="0 1.5 1.6" rotation="0 180 0"></a-plane>
+  <a-plane width="4.4" height="3" color="#ece5d8" position="-0.1 1.5 0.4" rotation="0 180 0"></a-plane>
   <a-plane width="6.4" height="5.8" color="#f7f8f9" position="0 3 -1.3" rotation="90 0 0"></a-plane>
-  <a-plane class="onwall" width="1.4" height="0.9" color="#a9d3f0" position="1.4 1.7 -4.18"></a-plane>
+  <a-plane class="onwall" width="1.0" height="0.9" color="#a9d3f0" position="1.25 1.7 -4.18"></a-plane>
   <!-- 천장 전등: 매입형 LED 평판등(60×60cm) 5개 — 침대 위 1개 + 방 앞뒤 좌우 4개. 빛나는 면은 조명 영향 없이 밝게 표시 -->
   <a-entity position="0 2.99 -2.45">
     <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
     <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
   </a-entity>
-  <a-entity position="-1.9 2.99 -3.2">
+  <a-entity position="-1.1 2.99 -3.0">
     <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
     <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
   </a-entity>
-  <a-entity position="1.9 2.99 -3.2">
+  <a-entity position="1.0 2.99 -3.0">
     <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
     <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
   </a-entity>
-  <a-entity position="-1.9 2.99 0.2">
+  <a-entity position="-1.1 2.99 -0.5">
     <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
     <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
   </a-entity>
-  <a-entity position="1.9 2.99 0.2">
+  <a-entity position="1.0 2.99 -0.5">
     <a-box width="0.64" height="0.02" depth="0.64" color="#d9dde2"></a-box>
     <a-plane width="0.6" height="0.6" position="0 -0.0115 0" rotation="90 0 0" material="shader:flat; color:#fffdf5"></a-plane>
   </a-entity>
 
   <!-- 걸레받이(벽 아래 띠, 높이 10cm): 바닥과 벽 경계가 잘 보이게 -->
   <a-box class="onwall" width="6.4" height="0.1" depth="0.015" color="#6e675e" position="0 0.05 -4.19"></a-box>
-  <a-box width="5.8" height="0.1" depth="0.015" color="#6e675e" position="-3.19 0.05 -1.3" rotation="0 90 0"></a-box>
-  <a-box width="5.8" height="0.1" depth="0.015" color="#6e675e" position="3.19 0.05 -1.3" rotation="0 90 0"></a-box>
-  <a-box width="6.4" height="0.1" depth="0.015" color="#6e675e" position="0 0.05 1.59"></a-box>
+  <a-box width="5.8" height="0.1" depth="0.015" color="#6e675e" position="-2.29 0.05 -1.3" rotation="0 90 0"></a-box>
+  <a-box width="5.8" height="0.1" depth="0.015" color="#6e675e" position="2.09 0.05 -1.3" rotation="0 90 0"></a-box>
+  <a-box width="4.4" height="0.1" depth="0.015" color="#6e675e" position="-0.1 0.05 0.39"></a-box>
 
   <!-- 벽걸이 TV: 침대 발치 쪽 벽(환자가 누워서 보는 맞은편), 55인치(화면 약 1.21m × 0.68m), 화면 가운데 높이 약 1.7m
        화면: 병원 안내 채널 '낙상 예방 수칙' (글씨는 tv-screen 컴포넌트에서 바꿀 수 있어요) -->
-  <a-entity id="tv" position="0 1.7 1.57" rotation="0 180 0">
+  <a-entity id="tv" position="-0.1 1.7 0.37" rotation="0 180 0">
     <a-box width="0.45" height="0.3" depth="0.02" color="#2c2f33" position="0 0 -0.02"></a-box>
     <a-box width="1.232" height="0.702" depth="0.022" material="color:#0d0e10; roughness:0.35; metalness:0.4"></a-box>
     <a-plane width="1.216" height="0.684" position="0 0.002 0.0115" tv-screen></a-plane>
@@ -1074,7 +1074,7 @@ function showMsg(html){
   </a-entity>
 
   <!-- 출입문: 오른쪽 벽(침대 발치 쪽), 폭 0.9m · 높이 2.1m — 문틀·손잡이·창·하단 보호판 -->
-  <a-entity id="door" position="3.19 0 0.25" rotation="0 -90 0">
+  <a-entity id="door" position="2.09 0 -0.15" rotation="0 -90 0">
     <a-box width="1.06" height="2.2" depth="0.04" color="#7d848c" position="0 1.1 -0.01"></a-box>
     <a-box width="0.9" height="2.1" depth="0.04" color="#c9a77c" position="0 1.05 0.012"></a-box>
     <a-plane width="0.22" height="0.6" color="#dfe9ef" position="-0.2 1.45 0.034"></a-plane>
@@ -1082,13 +1082,13 @@ function showMsg(html){
     <a-box width="0.04" height="0.04" depth="0.05" color="#a7acb2" position="0.36 1.0 0.055"></a-box>
     <a-box width="0.15" height="0.025" depth="0.025" color="#c4c8cd" position="0.3 1.0 0.08"></a-box>
     <a-plane width="0.42" height="0.14" position="0 2.32 0.012" sign-plate="text: 출입구; sub: EXIT; bg: #1f8a4c; fg: #ffffff"></a-plane>
-    <!-- 병실 번호판: 문 오른쪽(침대 발치 쪽) 벽, 눈높이 -->
-    <a-box width="0.3" height="0.2" depth="0.012" color="#d9dde2" position="0.78 1.5 0.006"></a-box>
-    <a-plane width="0.28" height="0.18" position="0.78 1.5 0.013" sign-plate="text: 801호; sub: 1인실 · 외과병동; bg: #1d4e89; fg: #ffffff"></a-plane>
+    <!-- 병실 번호판: 문 왼쪽(세면대 쪽) 벽, 손소독제·스위치 위 -->
+    <a-box width="0.3" height="0.2" depth="0.012" color="#d9dde2" position="-0.8 1.68 0.006"></a-box>
+    <a-plane width="0.28" height="0.18" position="-0.8 1.68 0.013" sign-plate="text: 801호; sub: 1인실 · 외과병동; bg: #1d4e89; fg: #ffffff"></a-plane>
   </a-entity>
 
   <!-- 전등 스위치: 손소독제 바로 옆(출입문 쪽), 높이 약 1.2m · 2구 스위치 -->
-  <a-entity id="lightswitch" position="3.193 1.2 -0.38" rotation="0 -90 0">
+  <a-entity id="lightswitch" position="2.093 1.2 -0.8" rotation="0 -90 0">
     <a-box width="0.085" height="0.125" depth="0.012" color="#f6f6f3"></a-box>
     <a-box width="0.026" height="0.07" depth="0.01" color="#ffffff" position="-0.016 0 0.009" rotation="6 0 0"></a-box>
     <a-box width="0.026" height="0.07" depth="0.01" color="#ffffff" position="0.016 0 0.009" rotation="-6 0 0"></a-box>
@@ -1096,14 +1096,14 @@ function showMsg(html){
   </a-entity>
 
   <!-- 손소독제(sanitizer.glb): 출입문 바로 옆 벽, 문과 세면대 사이 · 높이 약 1.2m -->
-  <a-entity id="sanitizer" gltf-model="url(sanitizer.glb)" scale="0.13 0.13 0.13" position="3.118 1.2 -0.55" rotation="0 -90 0"></a-entity>
+  <a-entity id="sanitizer" gltf-model="url(sanitizer.glb)" scale="0.13 0.13 0.13" position="2.018 1.2 -0.98" rotation="0 -90 0"></a-entity>
 
   <!-- 손씻기 구역: 세면대(sink.glb)를 오른쪽 벽에 붙임 — 문에서 약 0.7m 떨어져 문을 가리지 않음.
        세면대 윗면 높이 약 0.85m -->
-  <a-entity id="sink" gltf-model="url(sink.glb)" scale="0.28 0.28 0.28" position="2.934 0.748 -1.0" rotation="0 -90 0"></a-entity>
+  <a-entity id="sink" gltf-model="url(sink.glb)" scale="0.28 0.28 0.28" position="1.834 0.748 -1.5" rotation="0 -90 0"></a-entity>
   <!-- 의료폐기물(적출물) 전용용기: 벽면 손소독제 바로 밑 바닥, 벽에 붙임 · 골판지 상자형(일반의료폐기물), 원래 크기의 40%
        (폭 약 14 × 깊이 12 × 높이 19cm) · 라벨이 방 안쪽을 향함 -->
-  <a-entity id="wastebox" position="3.12 0 -0.55" rotation="0 -90 0" scale="0.4 0.4 0.4">
+  <a-entity id="wastebox" position="2.02 0 -0.98" rotation="0 -90 0" scale="0.4 0.4 0.4">
     <a-box width="0.36" height="0.44" depth="0.3" position="0 0.22 0" material="color:#c9a46c; roughness:0.95"></a-box>
     <a-box width="0.372" height="0.025" depth="0.312" position="0 0.452 0" material="color:#b8925a; roughness:0.95"></a-box>
     <a-box width="0.06" height="0.003" depth="0.314" position="0 0.466 0" material="color:#e9d9a8; roughness:0.6"></a-box>
@@ -1111,9 +1111,9 @@ function showMsg(html){
   </a-entity>
 
   <!-- 손세정제(hand_soap.glb): 세면대 윗면 뒤쪽 모서리, 수도꼭지 옆 · 라벨이 사용자 쪽 -->
-  <a-entity id="soap" gltf-model="url(hand_soap.glb)" scale="0.105 0.105 0.105" position="3.12 0.95 -1.09" rotation="0 -90 0"></a-entity>
+  <a-entity id="soap" gltf-model="url(hand_soap.glb)" scale="0.105 0.105 0.105" position="2.02 0.95 -1.59" rotation="0 -90 0"></a-entity>
   <!-- 페이퍼 타월 디스펜서(paper_towel.glb): 세면대 바로 위 벽 · 타월 나오는 곳 높이 약 1.25m -->
-  <a-entity id="towel" gltf-model="url(paper_towel.glb)" scale="0.19 0.19 0.19" position="3.144 1.43 -1.0" rotation="0 -90 0"></a-entity>
+  <a-entity id="towel" gltf-model="url(paper_towel.glb)" scale="0.19 0.19 0.19" position="2.044 1.43 -1.5" rotation="0 -90 0"></a-entity>
 
   <!-- 침대 (bed.glb): 전동 병원침대, 길이 약 2.1m · 머리 쪽이 벽 · 매트리스 윗면 높이 약 0.59m
        bed-rails rightDown: true = 환자 오른쪽 난간 내려감 / false = 올라감 -->
@@ -1145,7 +1145,7 @@ function showMsg(html){
 
   <!-- 병실 서랍장(키큰장): 폭 50 × 깊이 50 × 높이 210cm · 방 왼쪽 구석(침대 머리 쪽 벽 + 왼쪽 옆벽)에 붙여 세움 · 앞면이 TV 쪽을 바라봄
        아래부터: 문 달린 하부장 → 서랍 → 열린 선반 칸 → 문 달린 상부장 -->
-  <a-entity id="cabinet" class="onwall" position="-2.92 0 -3.94" rotation="0 0 0">
+  <a-entity id="cabinet" class="onwall" position="-2.02 0 -3.94" rotation="0 0 0">
     <a-box width="0.018" height="2.1" depth="0.5" position="-0.241 1.05 0" material="color:#d8c49b; roughness:0.7"></a-box>
     <a-box width="0.018" height="2.1" depth="0.5" position="0.241 1.05 0" material="color:#d8c49b; roughness:0.7"></a-box>
     <a-box width="0.464" height="2.1" depth="0.012" position="0 1.05 -0.244" material="color:#c9b385; roughness:0.7"></a-box>
@@ -1164,7 +1164,7 @@ function showMsg(html){
 
   <!-- 보호자 침대(접이식, 펼친 모습): 길이 약 185 × 폭 60 × 높이 45cm · 남색 쿠션 3칸 + 아이보리 철제 프레임 + 바퀴
        병실 서랍장 앞, 왼쪽 옆벽에 붙임 · 머리 쪽이 서랍장을 향하고 발치가 TV 쪽 -->
-  <a-entity id="gbed" class="onwall" position="-2.88 0 -2.66" rotation="0 0 0">
+  <a-entity id="gbed" class="onwall" position="-1.98 0 -2.66" rotation="0 0 0">
     <a-box width="0.58" height="0.09" depth="0.6" position="0 0.405 -0.62" material="color:#2d4775; roughness:0.55"></a-box>
     <a-box width="0.58" height="0.09" depth="0.6" position="0 0.405 0" material="color:#2d4775; roughness:0.55"></a-box>
     <a-box width="0.58" height="0.09" depth="0.6" position="0 0.405 0.62" material="color:#2d4775; roughness:0.55"></a-box>
@@ -1246,7 +1246,7 @@ function showMsg(html){
 
   <!-- 이동식 카트(처치 카트, treatment_cart.glb): 세면대와 같은 오른쪽 벽, 환자 모니터와 같은 줄에 벽에 붙임 ·
        서랍이 환자와 모니터 쪽을 바라봄. 몸체 높이 약 95cm (수액걸대 포함 약 1.45m) -->
-  <a-entity id="tcart" gltf-model="url(treatment_cart.glb)" scale="0.76 0.76 0.76" position="2.88 0.724 -2.8" rotation="0 -90 0"></a-entity>
+  <a-entity id="tcart" gltf-model="url(treatment_cart.glb)" scale="0.76 0.76 0.76" position="1.78 0.724 -2.8" rotation="0 -90 0"></a-entity>
 
   <!-- 환자 모니터: 환자 왼쪽(침대 머리 쪽 옆) 바퀴 달린 스탠드 위 · 화면이 침대 발치·폴대 쪽을 향함 -->
   <a-entity id="mstand" gltf-model="url(monitor_stand.glb)" scale="0.58 0.58 0.58" position="0.95 0.552 -3.05" rotation="0 -25 0"></a-entity>
@@ -1284,7 +1284,7 @@ function showMsg(html){
 
   <!-- 보는 사람: 시작 시점 = 폴대 쪽 (환자 오른편, 수액폴대·펌프·PCA·3-way가 잘 보임) -->
   <a-entity laser-controls="hand: right" raycaster="objects: .clickable"></a-entity>
-  <a-entity id="rig" position="-2.2 0 -2.0" rotation="0 -52 0">
+  <a-entity id="rig" position="-1.45 0 -1.25" rotation="0 -45 0">
     <a-camera id="cam" position="0 1.55 0" look-controls wasd-controls="acceleration:20"></a-camera>
   </a-entity>
 </a-scene>
@@ -1314,7 +1314,7 @@ function upd(){
 sel.addEventListener('change', load);
 /* 처음 화면 시점: 폴대 쪽(환자 오른편)에서 환자·수액폴대·펌프·PCA·3-way를 가까이 내려다봄
    조절창 아래 '현재 시점' 숫자를 여기에 옮겨 적으면 처음 화면이 그 시점으로 바뀌어요 */
-const START_VIEW = { x: -2.2, z: -2.0, yaw: -52, pitch: -10, h: 1.6 };
+const START_VIEW = { x: -1.45, z: -1.25, yaw: -45, pitch: -15, h: 1.6 };
 function setView(x, z, yaw, pitch, h){    // 시점 바꾸기 (pitch: 위·아래 각도, h: 눈높이)
   const rig = document.getElementById('rig'), lc = document.getElementById('cam').components['look-controls'];
   rig.setAttribute('position', x + ' 0 ' + z); rig.setAttribute('rotation', '0 ' + yaw + ' 0');
