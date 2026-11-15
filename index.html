@@ -296,22 +296,20 @@ AFRAME.registerComponent('iv-set', {
     this.tubeMat = new T.MeshStandardMaterial({ color:'#f2f6f8', roughness:0.4, transparent:true, opacity:0.85 });
     this.pcaMat = new T.MeshStandardMaterial({ color:'#ffe066', roughness:0.4 });   // PCA 라인: 노란빛으로 구분 (따라가 보기 쉽게)
     this.tubes = {}; this.last = ''; this.box = new T.Box3();
-    // 3-way 모양 (학습자가 잘 보이도록 실제보다 약 1.5배): 흰 몸통 + 주 라인 포트 2개(x축) + PCA 옆 포트(z축, 위쪽) + 파란 손잡이(y축 쪽)
-    const g = new T.Group(), white = new T.MeshStandardMaterial({color:'#ffffff', roughness:0.3}),
-          clear = new T.MeshStandardMaterial({color:'#e8f3fb', roughness:0.2, transparent:true, opacity:0.75}),
-          blue = new T.MeshStandardMaterial({color:'#2f6fd6', roughness:0.4});
-    const body = new T.Mesh(new T.CylinderGeometry(0.014,0.014,0.024,20), white); g.add(body);              // 밸브 몸통 (축 = y)
-    const main = new T.Mesh(new T.CylinderGeometry(0.0065,0.0065,0.08,12), white); main.rotation.z = Math.PI/2; g.add(main);
-    [0.04,-0.04].forEach(px => { const c = new T.Mesh(new T.CylinderGeometry(0.008,0.008,0.016,12), clear); c.rotation.z = Math.PI/2; c.position.x = px; g.add(c); });  // 루어 연결부
-    const side = new T.Mesh(new T.CylinderGeometry(0.0065,0.0065,0.04,12), white); side.rotation.x = Math.PI/2; side.position.z = 0.02; g.add(side);
-    const sc = new T.Mesh(new T.CylinderGeometry(0.008,0.008,0.014,12), clear); sc.rotation.x = Math.PI/2; sc.position.z = 0.04; g.add(sc);
-    // 손잡이: 가운데 원판 + 긴 팔(가리키는 쪽 = 잠긴 쪽) + 짧은 팔 2개
-    this.lever = new T.Group(); this.lever.position.y = 0.016;
-    this.lever.add(new T.Mesh(new T.CylinderGeometry(0.011,0.011,0.006,16), blue));
-    const arm = new T.Mesh(new T.BoxGeometry(0.009,0.006,0.04), blue); arm.position.z = 0.02; this.lever.add(arm);
-    const a2 = new T.Mesh(new T.BoxGeometry(0.03,0.006,0.008), blue); this.lever.add(a2);
-    const tip = new T.Mesh(new T.ConeGeometry(0.008,0.012,3), blue); tip.rotation.x = Math.PI/2; tip.position.z = 0.044; this.lever.add(tip);
-    g.add(this.lever);
+    // 3-way 모양: threeway.glb (Meshy 모델, 손잡이를 따로 떼어 돌릴 수 있게 나눔). 실제보다 약 1.5배(길이 약 10cm)
+    //   iv-set 기준 좌표: x = 주 라인(+x 펌프 쪽), z = PCA 옆 포트(위쪽), y = 손잡이 축
+    //   손잡이 팔이 가리키는 쪽 = 열린 포트, 팔이 없는 쪽 = 잠긴 포트 → 처음(0°)은 팔 없는 쪽이 PCA 포트 = PCA 잠김
+    const g = new T.Group(); this.lever = null;
+    const m3 = document.createElement('a-entity');
+    m3.setAttribute('gltf-model', 'url(threeway.glb)');
+    m3.setAttribute('scale', '0.05 0.05 0.05'); m3.setAttribute('rotation', '0 180 0'); m3.setAttribute('position', '0.015 0.0095 0.012');
+    m3.addEventListener('model-loaded', () => {
+      const sc = m3.getObject3D('mesh'), h = sc.getObjectByName('handle'); if (!h) return;
+      const pivot = new T.Object3D(); pivot.position.set(0.30, 0, 0.24);      // 손잡이 회전축(밸브 중심)
+      sc.add(pivot); h.position.set(-0.30, 0, -0.24); pivot.add(h);
+      this.lever = pivot; this.update();
+    });
+    this.data.threeway.appendChild(m3);
     // 클릭이 잘 되도록 보이지 않는 넓은 상자
     const hit = new T.Mesh(new T.BoxGeometry(0.13,0.08,0.11), new T.MeshBasicMaterial({visible:false})); g.add(hit);
     // PCA 라인 표시 꼬리표(노란색)
@@ -325,7 +323,7 @@ AFRAME.registerComponent('iv-set', {
     this.data.threeway.addEventListener('click', () => openItem('e5'));
   },
   update: function () {   // 손잡이 방향: PCA 포트 쪽(+z) = PCA 차단 / 반대쪽(-z) = 모두 열림
-    if (this.lever) this.lever.rotation.y = this.data.pcaClosed ? 0 : Math.PI;   // 긴 팔이 PCA 포트(+z)를 가리키면 PCA 잠김
+    if (this.lever) this.lever.rotation.y = this.data.pcaClosed ? 0 : Math.PI;   // 0° = PCA 포트 잠김(E5) / 180° = 세 방향 모두 열림
   },
   bottomOf: function (el, out) {
     const o = el.getObject3D('mesh'); if (!o) return false;
@@ -355,8 +353,8 @@ AFRAME.registerComponent('iv-set', {
     const X = new V(POUT.x - W.x, 0, POUT.z - W.z).normalize(), Z = new V(0, 1, 0), Y = new V().crossVectors(Z, X);
     const tw = this.data.threeway.object3D;
     tw.position.copy(W); tw.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z)); tw.updateMatrixWorld(true);
-    const inPort = tw.localToWorld(new V(0.048,0,0)), outPort = tw.localToWorld(new V(-0.048,0,0)),
-          sidePort = tw.localToWorld(new V(0,0,0.047));
+    const inPort = tw.localToWorld(new V(0.0625,0,0)), outPort = tw.localToWorld(new V(-0.0325,0,0)),   // threeway.glb 포트 끝
+          sidePort = tw.localToWorld(new V(0,0,0.0365));
     const sag = (a, b, d) => { const m = a.clone().lerp(b, 0.5); m.y = Math.min(a.y, b.y) - d; return m; };
     this.tube('bag2pump', [A, sag(A, PIN, 0.06), PIN]);              // 수액백 → 인퓨전펌프
     this.tube('main', [POUT, sag(POUT, inPort, 0.06), inPort]);      // 인퓨전펌프 → 3-way
