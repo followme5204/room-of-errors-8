@@ -348,7 +348,7 @@ AFRAME.registerComponent('iv-set', {
     this.data.threeway.addEventListener('click', () => openItem('e5'));
   },
   update: function () {   // 손잡이 방향: PCA 포트 쪽(+z) = PCA 차단 / 반대쪽(-z) = 모두 열림
-    if (this.lever) this.lever.rotation.y = this.data.pcaClosed ? 0 : Math.PI;   // 0° = PCA 포트 잠김(E5) / 180° = 세 방향 모두 열림
+    if (this.lever) this.lever.rotation.y = this.data.pcaClosed ? Math.PI : 0;   // 180° = PCA 포트 잠김(E5, 돌려져 있음) / 0° = 세 방향 모두 열림(연결)
   },
   bottomOf: function (el, out) {
     const o = el.getObject3D('mesh'); if (!o) return false;
@@ -370,8 +370,10 @@ AFRAME.registerComponent('iv-set', {
     const PIN = pump.object3D.localToWorld(new V(0.238, 0.95, -0.088)), POUT = pump.object3D.localToWorld(new V(0.241, -0.95, 0.078));
     const pt = this.data.patient.getObject3D('mesh'); if (!pt) return;
     const fore = this.bone(pt,'RightForeArm'), hand = this.bone(pt,'RightHand'); if (!fore || !hand) return;
-    fore.getWorldPosition(S); hand.getWorldPosition(H); S.lerp(H, 0.7);          // 주입 부위
-    const key = [A,P,S,PIN,POUT].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
+    fore.getWorldPosition(S); hand.getWorldPosition(H); S.lerp(H, 0.45);         // 주입 부위: 아래팔 중간(손목밴드보다 팔꿈치 쪽)
+    const site = document.getElementById('ivsite').object3D; site.updateMatrixWorld(true);
+    const HUB = site.localToWorld(new V(0.024, 0.003, 0)), APP = site.localToWorld(new V(0.075, 0.012, 0));   // 카테터 허브 끝 / 손 쪽에서 들어오는 줄
+    const key = [A,P,S,PIN,POUT,HUB].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
     if (key === this.last) return; this.last = key;
     // 3-way 위치: 인퓨전펌프 → 오른팔 주 수액선의 가운데쯤, 침대 높이보다 살짝 위 (학습자가 잘 보이게)
     // 3-way 위치: 환자 오른쪽 팔꿈치 바깥쪽 매트리스 위(시트 위에 놓임) — 폴대 쪽 시점에서 잘 보이는 곳
@@ -391,7 +393,7 @@ AFRAME.registerComponent('iv-set', {
     this.tube('pca', [P, P.clone().setY(P.y - 0.04), over, pUp, sidePort], this.pcaMat, 0.0045);
     this.tag.position.copy(sidePort).add(new V(0, 0.09, 0));         // PCA 꼬리표: 3-way 바로 위 PCA 라인에
     this.tag.rotation.set(0, Math.atan2(1, 0.6), 0);                 // 출입문 쪽에서 잘 읽히는 방향
-    this.tube('site', [outPort, sag(outPort, S, 0.04), S]);          // 3-way → 오른팔
+    this.tube('site', [outPort, sag(outPort, APP, 0.03), APP, HUB]);  // 3-way → 손 쪽에서 테가덤 안 카테터 허브로
   }
 });
 /* JP 배액관: 환자 오른쪽 상복부(RUQ)에서 나온 배액관이 환자 오른쪽 옆 매트리스 위 JP bulb로 연결됨.
@@ -565,7 +567,7 @@ AFRAME.registerComponent('iv-dressing', {
     const V = THREE.Vector3, F = fore.getWorldPosition(new V()), H = hand.getWorldPosition(new V());
     const key = [F, H].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
     if (key === this.last) return; this.last = key;
-    const S = F.clone().lerp(H, 0.7);                       // 삽입 부위 (수액 줄 끝과 같은 곳)
+    const S = F.clone().lerp(H, 0.45);                      // 삽입 부위: 아래팔 중간 (손목밴드보다 팔꿈치 쪽)
     const dir = new V(H.x - F.x, 0, H.z - F.z).normalize();  // 팔 방향 (팔꿈치 → 손)
     // 팔 윗면 높이: 위에서 아래로 쏘아 팔 표면 찾기 (못 찾으면 뼈 위 2.5cm)
     this.ray.set(new V(S.x, S.y + 0.4, S.z), new V(0, -1, 0));
@@ -920,10 +922,12 @@ AFRAME.registerComponent('arm-band', {
     g.font = 'bold ' + (d.barcode ? 34 : 50) + 'px "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",Arial,sans-serif';
     for (let i = 0; i < n; i++) {
       const cx = W / n * (i + 0.5);
-      if (d.barcode) {   // 이름·등록번호 + 바코드
-        g.fillText(d.text, cx - 50, H / 2 + 2);
-        let bx = cx + g.measureText(d.text).width / 2 - 30;
-        for (let k = 0; k < 18; k++) { const w = (k * 7 % 3) + 1; g.fillRect(bx, 16, w * 1.6, H - 32); bx += w * 1.6 + 2; }
+      if (d.barcode) {   // 윗줄 이름, 아랫줄 등록번호 + 오른쪽 바코드
+        const [l1, l2] = d.text.split('|'), x0 = cx - 50;
+        g.font = 'bold 34px "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",Arial,sans-serif'; g.fillText(l1, x0, 22);
+        g.font = 'bold 30px Arial,sans-serif'; g.fillText(l2 || '', x0, 58);
+        let bx = cx + 45;
+        for (let k = 0; k < 14; k++) { const w = (k * 7 % 3) + 1; g.fillRect(bx, 10, w * 1.5, H - 20); bx += w * 1.5 + 2; }
       } else g.fillText(d.text, cx, H / 2 + 3);
     }
     this.tex.needsUpdate = true;
@@ -964,7 +968,7 @@ AFRAME.registerComponent('arm-band', {
       this.hit = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 12), new THREE.MeshBasicMaterial({ visible: false })); this.root.add(this.hit);
     }
     this.band.position.copy(C); this.band.quaternion.setFromUnitVectors(new V(0, 1, 0), axis);
-    this.hit.position.copy(C); this.hit.quaternion.copy(this.band.quaternion); this.hit.scale.set(r + 0.025, 0.06, r + 0.025);   // 누르기 쉽게 넓은 클릭 영역
+    this.hit.position.copy(C); this.hit.quaternion.copy(this.band.quaternion); this.hit.scale.set(r + 0.02, 0.045, r + 0.02);   // 누르기 쉽게 넓은 클릭 영역
   }
 });
 
@@ -1341,11 +1345,11 @@ function showMsg(html){
   <a-entity id="railR" class="clickable"></a-entity>
   <a-entity id="railL" class="clickable"></a-entity>
   <!-- 침대 리모컨: 매트리스 위 환자 오른쪽 어깨 옆. 화면 = 침상머리 각도 (E7: 0°, 교정하면 30°). 클릭 → 팝업 -->
-  <a-entity id="remote" class="clickable" bed-remote="angle: 0" position="-0.36 0.606 -3.02" rotation="0 12 0"></a-entity>
+  <a-entity id="remote" class="clickable" bed-remote="angle: 0" position="-0.34 0.606 -3.32" rotation="0 12 0"></a-entity>
   <!-- ARM SAVE 밴드: 환자 왼쪽 손목 (Lt. arm save 표시, 분홍 실리콘 밴드) -->
   <a-entity id="armband" arm-band="patient: #patient; side: Left; text: ARM SAVE"></a-entity>
   <!-- 환자 확인 손목밴드: 오른쪽 손목, 흰 밴드에 이름·등록번호·바코드. 등록번호 10234576 = 차트(10234567)와 다름 → E1 오류. 클릭 → 팝업 -->
-  <a-entity id="idband" class="clickable" arm-band="patient: #patient; side: Right; text: 나예민  F  10234576; color: #fbfbf7; fg: #1b1b1b; repeat: 2; offset: 0.03; width: 0.03; barcode: true; item: e1"></a-entity>
+  <a-entity id="idband" class="clickable" arm-band="patient: #patient; side: Right; text: 나예진 (F)|10234576; color: #fbfbf7; fg: #1b1b1b; repeat: 3; offset: 0.03; width: 0.03; barcode: true; item: e1"></a-entity>
   <a-entity id="ivsite" class="clickable" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
 
   <!-- 수술 부위: 배를 클릭하면 환자복 상의가 열리고 포트 4곳 거즈가 보임. JP 삽입 부위(오른쪽 갈비뼈 아래 바깥쪽) 거즈에 oozing.
@@ -1428,7 +1432,7 @@ document.getElementById('toggle').onclick = function(){
    정상 항목을 오류로 고르면 위양성(-2점). 10분 안에 8개를 찾는 과제. */
 const LIMIT = 600;
 const ITEMS = {
-  e1:{err:true,w:5,title:'손목밴드',see:'밴드: 나예민 / 등록번호 <b>10234576</b><br>차트 등록번호: <b>10234567</b>',fix:'개방형 질문(성함·생년월일)으로 환자를 확인하고 정확한 밴드로 교체',why:'2가지 이상 식별정보로 환자 확인 (의료기관평가인증원, 2026)'},
+  e1:{err:true,w:5,title:'손목밴드',see:'손목밴드: <b>나예진</b> / 등록번호 <b>10234576</b><br>차트: 나예민 / 등록번호 10234567',fix:'개방형 질문(성함·생년월일)으로 환자를 확인하고 정확한 밴드로 교체',why:'2가지 이상 식별정보로 환자 확인 (의료기관평가인증원, 2026)'},
   e2:{err:true,w:10,title:'우상복부 드레싱 · JP 배액',see:'RUQ 드레싱에 선홍색 혈액이 번져 있음(oozing).<br>JP bulb 안 <b>선홍색 배액 약 100 mL</b> (도착 시 혈성 20 mL)',fix:'V/S 재측정 후 담당의에게 SBAR 즉시 보고 → 구두처방 "수액 500 mL bolus" read-back 후 주입',why:'1시간 내 급격한 증가·선홍색 배액은 출혈 시사 → 즉시 보고 (Cleveland Clinic, 2023; MSKCC, 2023)'},
   e3:{err:true,w:10,title:'JP drain bulb',see:'JP bulb가 둥글게 <b>부풀어 있음</b>(음압 소실). 배액 line이 환자복에 <b>고정되어 있지 않음</b>.<br>처방: 음압 유지(bulb 압축 상태 유지)',fix:'bulb를 압축한 뒤 마개를 잠그고 line을 환자복에 고정',why:'음압이 없으면 배액이 덜 되어 출혈량이 과소평가됨 (Cleveland Clinic, 2023; MSKCC, 2023)'},
   e4:{err:true,w:10,title:'인퓨전펌프 (수액 속도)',see:'Plasma 1 L 주입 속도: <b>20 mL/hr</b><br>처방: 80 mL/hr',fix:'처방 속도 80 mL/hr로 교정하고 5 Rights 재확인',why:'5 Rights에 따른 주입 속도 확인 (의료기관평가인증원, 2026)'},
@@ -1507,7 +1511,7 @@ function report(id){
 }
 function applyFix(id){   // 교정된 모습으로 바꾸기
   if (id === 'e2') st.e2At = st.t;
-  if (id === 'e1') $r('idband').setAttribute('arm-band', 'text', '나예민  F  10234567');   // 정확한 밴드로 교체
+  if (id === 'e1') $r('idband').setAttribute('arm-band', 'text', '나예민 (F)|10234567');   // 정확한 밴드로 교체
   if (id === 'e4') document.querySelector('[pump-screen]').setAttribute('pump-screen', 'rate', 80);
   if (id === 'e5') { st.e5At = st.t; document.querySelector('[iv-set]').setAttribute('iv-set', 'pcaClosed', false); }
   if (id === 'e6') $r('cuff').setAttribute('bp-cuff', 'side', 'right');
