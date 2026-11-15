@@ -138,66 +138,67 @@ AFRAME.registerComponent('pose-clip', {
    rightDown: true = 내려감 / false = 올라감 (원래 모델 상태) */
 AFRAME.registerComponent('bed-rails', {
   schema: { rightDown: {default: true}, leftUp: {default: true} },
+  // 환자 오른쪽 난간: 원래 모델 난간은 침대 틀 속으로 숨기고, 끊김 없는 난간을 코드로 새로 만들어 올리고 내림
+  //   rightDown: true = 내려감(E8 오류) / false = 올라감 · 왼쪽 난간은 원래 모델(조금 높여 잘 보이게)
   init: function () {
     this.el.addEventListener('model-loaded', () => { this.ready = true; this.update(); });
   },
   update: function () {
     if (!this.ready) return;
-    this.el.getObject3D('mesh').traverse(o => {
+    const sc = this.el.getObject3D('mesh');
+    let ext = null;
+    sc.traverse(o => {
       if (!o.isMesh || o.userData.noRail) return;
       const pos = o.geometry.attributes.position;
       if (!this.orig) this.orig = pos.array.slice();
+      ext = ext || { x0: 1e9, x1: -1e9, y1: -1e9, z: 0, n: 0 };
       for (let i = 0; i < pos.count; i++) {
         const x = this.orig[i*3], y = this.orig[i*3+1], z = this.orig[i*3+2];
-        // 모델 기준 -z 쪽 = 환자 오른쪽. 매트리스보다 위에 있는 난간 부분만 아래로 0.22 이동
-        const isRightRail = z < -0.25 && Math.abs(x) < 0.8 && y > 0.18;
-        const isLeftRail  = z >  0.25 && Math.abs(x) < 0.8 && y > 0.17;   // 모델 기준 +z 쪽 = 환자 왼쪽
-        let ny = y;
-        if (this.data.rightDown && isRightRail) ny = y - 0.22;        // 오른쪽: 내림
-        if (this.data.leftUp && isLeftRail) ny = y + 0.12;            // 왼쪽: 확실히 올라온 높이로 (매트리스 위 약 30cm)
-        pos.array[i*3+1] = ny;
+        const isRightRail = z < -0.25 && Math.abs(x) < 0.8 && y > 0.18;     // 모델 기준 -z 쪽 = 환자 오른쪽
+        const isLeftRail  = z >  0.25 && Math.abs(x) < 0.8 && y > 0.17;     // 모델 기준 +z 쪽 = 환자 왼쪽
+        let nx = x, ny = y, nz = z;
+        if (isRightRail) {                                                    // 원래 오른쪽 난간: 매트리스 아래 침대 틀 속으로 접어 숨김
+          ext.x0 = Math.min(ext.x0, x); ext.x1 = Math.max(ext.x1, x); ext.y1 = Math.max(ext.y1, y); ext.z += z; ext.n++;
+          ny = 0.02; nz = -0.3;
+        }
+        if (this.data.leftUp && isLeftRail) ny = y + 0.12;                   // 왼쪽: 확실히 올라온 높이로
+        pos.array[i*3] = nx; pos.array[i*3+1] = ny; pos.array[i*3+2] = nz;
       }
       pos.needsUpdate = true; o.geometry.computeBoundingBox(); o.geometry.computeBoundingSphere();
     });
+    if (ext && ext.n && !this.rail) this.buildRail(sc, ext);
+    if (this.rail) this.rail.position.y = this.data.rightDown ? -0.24 : 0;    // 내림: 매트리스 아래로
     this.makeHits();
+  },
+  buildRail: function (sc, e) {   // 끊김 없는 난간(모델 좌표): 위 손잡이 봉 + 아래 봉 + 양 끝 기둥(침대 틀까지) + 세로 살
+    const z = e.z / e.n, x0 = Math.max(-0.62, e.x0), x1 = Math.min(0.62, e.x1), top = Math.min(e.y1, 0.36), bot = 0.2;
+    const m = new THREE.MeshStandardMaterial({ color: '#41464d', metalness: 0.5, roughness: 0.4 });
+    const g = new THREE.Group(), r = 0.012;
+    const bar = (len, px, py, horiz) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 12), m);
+      if (horiz) c.rotation.z = Math.PI / 2; c.position.set(px, py, z); c.userData.noRail = true; g.add(c); };
+    bar(x1 - x0, (x0 + x1) / 2, top, true); bar(x1 - x0, (x0 + x1) / 2, bot, true);
+    bar(top + 0.02, x0, (top - 0.02) / 2, false); bar(top + 0.02, x1, (top - 0.02) / 2, false);   // 양 끝 기둥: 침대 틀(아래)까지
+    for (let k = 1; k < 6; k++) { const px = x0 + (x1 - x0) * k / 6; bar(top - bot, px, (top + bot) / 2, false); }
+    g.userData.noRail = true; sc.add(g); this.rail = g;
   },
   // 난간 클릭 영역: 각 난간 맨 윗부분(손잡이 높이)만 감싸는 보이지 않는 상자 — 3-way·JP 등 매트리스 위 물건 클릭을 막지 않게
   makeHits: function () {
     const V = THREE.Vector3, o3 = this.el.object3D; o3.updateMatrixWorld(true);
-    const R = new THREE.Box3(), L = new THREE.Box3(), v = new V();
+    const R = this.rail ? new THREE.Box3().setFromObject(this.rail) : new THREE.Box3(), L = new THREE.Box3(), v = new V();
     this.el.getObject3D('mesh').traverse(o => {
       if (!o.isMesh || o.userData.noRail) return;
       const pos = o.geometry.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const x = this.orig[i*3], y = this.orig[i*3+1], z = this.orig[i*3+2];
-        const isR = z < -0.25 && Math.abs(x) < 0.8 && y > 0.18, isL = z > 0.25 && Math.abs(x) < 0.8 && y > 0.17;
-        if (!isR && !isL) continue;
-        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
-        (isR ? R : L).expandByPoint(v);
+        if (!(z > 0.25 && Math.abs(x) < 0.8 && y > 0.17)) continue;
+        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); L.expandByPoint(v);
       }
-    });
-    // 올라간 난간이 침대 틀과 이어져 보이도록 세로 기둥(3개씩)을 붙임 — 내려간 난간은 기둥 숨김
-    if (!this.posts) {
-      this.posts = { R: [], L: [] };
-      const pm = new THREE.MeshStandardMaterial({ color: '#5b6067', metalness: 0.5, roughness: 0.4 });
-      ['R', 'L'].forEach(k => { for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 1, 10), pm); this.el.sceneEl.object3D.add(m); this.posts[k].push(m); } });
-    }
-    const bottomY = BED.top - 0.14;                                          // 매트리스 아래 침대 틀 높이
-    [['R', R, !this.data.rightDown], ['L', L, true]].forEach(([k, b, up]) => {
-      this.posts[k].forEach((m, i) => {
-        if (b.isEmpty() || !up) { m.visible = false; return; }
-        const f = [0.12, 0.5, 0.88][i], px = b.min.x + (b.max.x - b.min.x) * f, pz = b.min.z + (b.max.z - b.min.z) * f;
-        const top = b.min.y + 0.02, len = Math.max(0.05, top - bottomY);
-        m.visible = true; m.position.set((b.min.x + b.max.x) / 2 + (px - (b.min.x + b.max.x) / 2) * ((b.max.x - b.min.x) > (b.max.z - b.min.z) ? 1 : 0),
-          (top + bottomY) / 2, (b.min.z + b.max.z) / 2 + (pz - (b.min.z + b.max.z) / 2) * ((b.max.z - b.min.z) > (b.max.x - b.min.x) ? 1 : 0));
-        m.scale.set(1, len, 1);
-      });
     });
     [['railR', R], ['railL', L]].forEach(([id, b]) => {
       const el = document.getElementById(id); if (!el || b.isEmpty()) return;
       if (!el.getObject3D('mesh')) el.setObject3D('mesh', new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ visible: false })));
-      const m = el.getObject3D('mesh'), c = b.getCenter(new V()), s = b.getSize(new V());
-      m.position.set(c.x, b.max.y - 0.03, c.z); m.scale.set(s.x + 0.02, 0.07, s.z + 0.02);
+      const mh = el.getObject3D('mesh'), c = b.getCenter(new V()), s = b.getSize(new V());
+      mh.position.set(c.x, b.max.y - 0.03, c.z); mh.scale.set(s.x + 0.02, 0.07, s.z + 0.02);
     });
   }
 });
