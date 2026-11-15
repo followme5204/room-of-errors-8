@@ -147,6 +147,29 @@ AFRAME.registerComponent('bed-rails', {
       }
       pos.needsUpdate = true; o.geometry.computeBoundingBox(); o.geometry.computeBoundingSphere();
     });
+    this.makeHits();
+  },
+  // 난간 클릭 영역: 각 난간 맨 윗부분(손잡이 높이)만 감싸는 보이지 않는 상자 — 3-way·JP 등 매트리스 위 물건 클릭을 막지 않게
+  makeHits: function () {
+    const V = THREE.Vector3, o3 = this.el.object3D; o3.updateMatrixWorld(true);
+    const R = new THREE.Box3(), L = new THREE.Box3(), v = new V();
+    this.el.getObject3D('mesh').traverse(o => {
+      if (!o.isMesh) return;
+      const pos = o.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = this.orig[i*3], y = this.orig[i*3+1], z = this.orig[i*3+2];
+        const isR = z < -0.25 && Math.abs(x) < 0.8 && y > 0.18, isL = z > 0.25 && Math.abs(x) < 0.8 && y > 0.17;
+        if (!isR && !isL) continue;
+        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+        (isR ? R : L).expandByPoint(v);
+      }
+    });
+    [['railR', R], ['railL', L]].forEach(([id, b]) => {
+      const el = document.getElementById(id); if (!el || b.isEmpty()) return;
+      if (!el.getObject3D('mesh')) el.setObject3D('mesh', new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ visible: false })));
+      const m = el.getObject3D('mesh'), c = b.getCenter(new V()), s = b.getSize(new V());
+      m.position.set(c.x, b.max.y - 0.03, c.z); m.scale.set(s.x + 0.02, 0.07, s.z + 0.02);
+    });
   }
 });
 
@@ -1314,6 +1337,9 @@ function showMsg(html){
   <a-entity id="jpc" class="clickable" gltf-model="url(jp_compressed.glb)" visible="false" position="-0.5 0.6 -2.4" scale="0.05 0.05 0.028" rotation="-90 0 0"></a-entity>
 
   <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
+  <!-- 난간 클릭 영역(보이지 않음): 오른쪽 난간 = E8 오류(내려감) / 왼쪽 난간 = 정상 항목. 위치는 bed-rails가 잡아 줌 -->
+  <a-entity id="railR" class="clickable"></a-entity>
+  <a-entity id="railL" class="clickable"></a-entity>
   <!-- 침대 리모컨: 매트리스 위 환자 오른쪽 어깨 옆. 화면 = 침상머리 각도 (E7: 0°, 교정하면 30°). 클릭 → 팝업 -->
   <a-entity id="remote" class="clickable" bed-remote="angle: 0" position="-0.36 0.606 -3.02" rotation="0 12 0"></a-entity>
   <!-- ARM SAVE 밴드: 환자 왼쪽 손목 (Lt. arm save 표시, 분홍 실리콘 밴드) -->
@@ -1409,12 +1435,12 @@ const ITEMS = {
   e5:{err:true,w:10,title:'PCA line · 3-way',see:'PCA line을 따라가 보니 <b>3-way 손잡이가 PCA 쪽으로 잠겨 있음</b> → 기저유량·bolus가 들어가지 않음.<br>환자: "눌러도 별로 안 나아지는 것 같아요."',fix:'3-way를 돌려 PCA line을 열고 line을 환자까지 추적, 통증(NRS) 재사정',why:'근무 시작 시 PCA 작동·line 개방 확인 (RHW, 2025; Kent CHFT, 2026)'},
   e6:{err:true,w:5,title:'왼팔 BP cuff',see:'<b>Lt. arm 상완에 BP cuff</b>가 감겨 있음.<br>처방: Lt. arm save (BP·IV·채혈 금지)',fix:'왼팔에서 cuff를 제거하고 Rt. arm으로 옮겨 V/S 측정',why:'ALND 후 위험측 상지 BP·채혈·IV 회피 (Brophy et al., 2022)'},
   e7:{err:true,w:5,title:'침상 각도',see:'침대 리모컨 화면: 침상머리(HEAD) <b>0°(flat)</b>.<br>처방: semi-Fowler\'s',fix:'리모컨으로 침상머리를 30~45°로 올림',why:'복강경 수술 후 반좌위 (최운정 외, 2017; 서울특별시간호사회, 2023)'},
-  e8:{err:true,w:10,title:'Side rail · Call bell',see:'가까운 쪽 <b>side rail이 내려가 있고</b>, <b>call bell이 바닥에</b> 떨어져 있음.',fix:'side rail을 올리고 call bell을 환자 손이 닿는 곳에 둠',why:'낙상 위험 환경 관리 (의료기관평가인증원, 2026; 병원간호사회, 2019)'},
+  e8:{err:true,w:10,title:'Side rail',see:'환자 오른쪽(가까운 쪽) <b>side rail이 내려가 있음</b>.',fix:'side rail을 올려 낙상 위험 환경을 정리함',why:'낙상 위험 환경 관리 (의료기관평가인증원, 2026; 병원간호사회, 2019)'},
   n_iv:{err:false,title:'Rt. arm 말초정맥관',see:'삽입부 깨끗함, 발적·부종 없음, 고정 양호. (12/14 18G 2pm)'},
   n_dress:{err:false,title:'하복부 드레싱',see:'투관침 부위 드레싱 — 깨끗하고 건조함.'},
   n_fluid:{err:false,title:'수액',see:'Plasma 1 L — 처방된 수액과 동일.'},
   n_pca:{err:false,title:'IV PCA 기기',see:'일회용 탄력식 PCA — 잔량 적절, 기기 외관 이상 없음.'},
-  n_rail:{err:false,title:'반대편 Side rail',see:'올라가 있음.'},
+  n_rail:{err:false,title:'환자 왼쪽 Side rail',see:'올라가 있음.'},
   chart:{info:true,title:'처방 · 차트'}, patient:{info:true,title:'환자 나예민'}
 };
 const ERR_IDS = ['e1','e2','e3','e4','e5','e6','e7','e8'];
@@ -1435,7 +1461,7 @@ function openPop(title, body, btns){
 }
 function closePop(){ $r('roePop').classList.add('hidden'); }
 /* 🔍 가까이 보기: 팝업에서 누르면 그 물건 앞 약 50cm로 다가가 내려다봄. [↩ 원래 시점]으로 돌아옴 */
-const FOCUS = { e7:'remote', e1:'idband', e2:'abdwound', e3:'jp', e4:'pumpscreen', e5:'threeway', e6:'cuff', n_iv:'ivsite', n_fluid:'ivbag', n_pca:'pca', n_dress:'abdwound' };
+const FOCUS = { e8:'railR', n_rail:'railL', e7:'remote', e1:'idband', e2:'abdwound', e3:'jp', e4:'pumpscreen', e5:'threeway', e6:'cuff', n_iv:'ivsite', n_fluid:'ivbag', n_pca:'pca', n_dress:'abdwound' };
 let savedView = null;
 function getView(){
   const rig = $r('rig').object3D, cam = $r('cam'), lc = cam.components['look-controls'];
@@ -1486,6 +1512,7 @@ function applyFix(id){   // 교정된 모습으로 바꾸기
   if (id === 'e5') { st.e5At = st.t; document.querySelector('[iv-set]').setAttribute('iv-set', 'pcaClosed', false); }
   if (id === 'e6') $r('cuff').setAttribute('bp-cuff', 'side', 'right');
   if (id === 'e7') $r('remote').setAttribute('bed-remote', 'angle', 30);   // 리모컨으로 침상머리 30°
+  if (id === 'e8') $r('bed').setAttribute('bed-rails', 'rightDown', false); // 환자 오른쪽 난간 올림
   if (id === 'e3') $r('jp').setAttribute('jp-drain', 'fixed', true);
 }
 function vitals(t){   // 오류를 못 찾으면 시간에 따라 나빠지는 활력징후
@@ -1545,6 +1572,8 @@ function roeFinish(){
 }
 // 정상 항목 클릭 연결 (오류 항목은 각 물건 코드에서 openItem 호출)
 $r('ivsite').addEventListener('click', () => openItem('n_iv'));
+$r('railR').addEventListener('click', () => openItem('e8'));
+$r('railL').addEventListener('click', () => openItem('n_rail'));
 $r('jpc').addEventListener('click', () => openItem('e3'));
 $r('ivbag').addEventListener('click', () => openItem('n_fluid'));
 $r('pca').addEventListener('click', () => openItem('n_pca'));
