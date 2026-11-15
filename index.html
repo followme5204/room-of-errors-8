@@ -863,6 +863,57 @@ AFRAME.registerComponent('waste-label', {
   }
 });
 
+/* ARM SAVE 밴드: 환자 왼쪽 손목에 분홍색 실리콘 밴드("ARM SAVE"). Lt. arm save 처방 표시 (E6 단서)
+   손목 굵기는 환자 모델 표면에서 재서 밴드가 살에 묻히지 않게 맞춤 */
+AFRAME.registerComponent('arm-band', {
+  schema: { patient: {type: 'selector'}, side: {default: 'Left'}, text: {default: 'ARM SAVE'}, color: {default: '#ff3ea5'} },
+  init: function () {
+    const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 64;
+    const g = cv.getContext('2d');
+    g.fillStyle = this.data.color; g.fillRect(0, 0, 1024, 64);
+    g.fillStyle = '#111'; g.font = 'bold 44px "Arial Black", Arial, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
+    for (let i = 0; i < 3; i++) g.fillText(this.data.text, 1024 / 3 * (i + 0.5), 34);    // 둘레에 3번 반복
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    this.mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, side: THREE.DoubleSide });
+    this.band = null; this.prev = ''; this.still = 0; this.built = '';
+  },
+  bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
+  tick: function () {
+    const pt = this.data.patient.getObject3D('mesh'); if (!pt) return;
+    const s = this.data.side, fa = this.bone(pt, s + 'ForeArm'), hd = this.bone(pt, s + 'Hand'); if (!fa || !hd) return;
+    const V = THREE.Vector3, F = fa.getWorldPosition(new V()), Hn = hd.getWorldPosition(new V());
+    const key = [F, Hn].map(v => v.toArray().map(q => q.toFixed(3)).join()).join('|');
+    this.still = key === this.prev ? this.still + 1 : 0; this.prev = key;
+    if (this.still < 30 || key === this.built) return;
+    this.built = key;
+    const axis = Hn.clone().sub(F).normalize();
+    const C = Hn.clone().addScaledVector(axis, -0.035);                 // 손목: 손 관절에서 팔꿈치 쪽으로 3.5cm
+    // 손목 굵기: 그 근처 아래팔·손 표면 점들의 축으로부터 거리
+    let mesh = null; pt.traverse(o => { if (o.isSkinnedMesh && !mesh) mesh = o; });
+    let r = 0.03;
+    if (mesh) {
+      pt.updateMatrixWorld(true);
+      const g = mesh.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, bones = mesh.skeleton.bones, v = new V();
+      let mx = 0;
+      for (let i = 0; i < g.attributes.position.count; i++) {
+        let bi = 0, bw = -1;
+        for (let k = 0; k < 4; k++) { const w = sw.getComponent(i, k); if (w > bw) { bw = w; bi = si.getComponent(i, k); } }
+        const nm = bones[bi] ? bones[bi].name : '';
+        if (nm.indexOf(s + 'ForeArm') < 0 && nm.indexOf(s + 'Hand') < 0) continue;
+        mesh.getVertexPosition(i, v); v.applyMatrix4(mesh.matrixWorld);
+        const d = v.clone().sub(C), along = d.dot(axis); if (Math.abs(along) > 0.012) continue;
+        const rad = d.addScaledVector(axis, -along).length(); if (rad < 0.08 && rad > mx) mx = rad;
+      }
+      if (mx > 0.01) r = mx;
+    }
+    const geo = new THREE.CylinderGeometry(r + 0.004, r + 0.004, 0.018, 48, 1, true);
+    if (this.band) { this.band.geometry.dispose(); this.band.geometry = geo; }
+    else { this.band = new THREE.Mesh(geo, this.mat); this.el.sceneEl.object3D.add(this.band); }
+    this.band.position.copy(C);
+    this.band.quaternion.setFromUnitVectors(new V(0, 1, 0), axis);
+  }
+});
+
 function showMsg(html){
   const m = document.getElementById('toast'); m.innerHTML = html; m.style.display = 'block';
   clearTimeout(showMsg.t); showMsg.t = setTimeout(() => m.style.display = 'none', 6000);
@@ -1194,6 +1245,8 @@ function showMsg(html){
   <a-entity id="jpc" class="clickable" gltf-model="url(jp_compressed.glb)" visible="false" position="-0.5 0.6 -2.4" scale="0.05 0.05 0.028" rotation="-90 0 0"></a-entity>
 
   <!-- 오른팔 정맥관 드레싱(테가덤) + 라벨 -->
+  <!-- ARM SAVE 밴드: 환자 왼쪽 손목 (Lt. arm save 표시, 분홍 실리콘 밴드) -->
+  <a-entity id="armband" arm-band="patient: #patient; side: Left; text: ARM SAVE"></a-entity>
   <a-entity id="ivsite" class="clickable" iv-dressing="patient: #patient; label: 12/14 18G 2pm"></a-entity>
 
   <!-- 수술 부위: 배를 클릭하면 환자복 상의가 열리고 포트 4곳 거즈가 보임. JP 삽입 부위(오른쪽 갈비뼈 아래 바깥쪽) 거즈에 oozing.
