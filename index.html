@@ -409,7 +409,8 @@ AFRAME.registerComponent('iv-set', {
     this.tag.position.copy(sidePort).add(new V(0, 0.09, 0));         // PCA 꼬리표: 3-way 바로 위 PCA 라인에
     this.tag.rotation.set(0, Math.atan2(1, 0.6), 0);                 // 출입문 쪽에서 잘 읽히는 방향
     const APP2 = APP.clone().lerp(outPort, 0.15);
-    this.tube('site', [outPort, sag(outPort, APP2, 0.03), APP2, APP, HUB]);  // 3-way → 테가덤 홈으로 들어가 카테터 허브에 연결
+    const arch = outPort.clone().lerp(APP2, 0.5); arch.y = Math.max(outPort.y, APP2.y) + 0.03;   // 매트리스 위로 둥글게 넘어감 (침상머리를 올려도 매트리스에 묻히지 않게)
+    this.tube('site', [outPort, outPort.clone().lerp(arch, 0.5).setY(Math.max(outPort.y, arch.y - 0.01)), arch, APP2, APP, HUB]);  // 3-way → 테가덤 홈으로 들어가 카테터 허브에 연결
   }
 });
 /* JP 배액관: 환자 오른쪽 상복부(RUQ)에서 나온 배액관이 환자 오른쪽 옆 매트리스 위 JP bulb로 연결됨.
