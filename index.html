@@ -498,8 +498,8 @@ AFRAME.registerComponent('jp-drain', {
     // 삽입 부위: 오른쪽 상복부 옆쪽, 몸 표면
     if (k !== this.ruqKey) {                         // 환자 자세가 바뀔 때만 몸 표면을 다시 찾음 (태블릿 속도)
       this.ruqKey = k;
-      const ix = ruq.x - 0.11, iz = ruq.z, sy = this.surfaceY(pt, ix, iz, ruq.y + 0.4);
-      this.P = new V(ix, sy !== null ? sy - 0.005 : ruq.y + 0.1, iz);
+      const ix = H.x - 0.09, iz = H.z - 0.07, sy = this.surfaceY(pt, ix, iz, ruq.y + 0.4);   // 환자 오른쪽 아랫배(바지 바로 위)
+      this.P = new V(ix, sy !== null ? sy - 0.005 : H.y + 0.1, iz);
     }
     const P = this.P;
     this.el.object3D.updateMatrixWorld(true);
@@ -511,16 +511,7 @@ AFRAME.registerComponent('jp-drain', {
     if (key === this.last) return; this.last = key;
     // 배액관: 삽입 부위 → 환자복 상의 속으로 → 상의 맨 밑단(허리)에서 빠져나와 → 옆구리 → 매트리스 위 → bulb 연결구
     //   (상의를 열었을 때는 거즈 밑에서 나와 피부 위를 지나 옆구리로 내려감)
-    const B2 = new V(ruq.x - 0.19, BED.top + 0.025, ruq.z + 0.03);           // 옆구리 아래, 상의 밑에서 나오는 곳
-    let pts;
-    if (open) {
-      const sy = (dx) => { const y = this.surfaceY(pt, ruq.x - dx, ruq.z, ruq.y + 0.4); return y !== null ? y : P.y; };
-      if (this.openKey !== k) { this.openKey = k; this.oy1 = sy(0.15); this.oy2 = sy(0.18); }
-      pts = [P, new V(ruq.x - 0.15, this.oy1 + 0.008, ruq.z), new V(ruq.x - 0.18, Math.max(this.oy2, B2.y) + 0.004, ruq.z + 0.015), B2, ...(!this.data.fixed && this.edge ? [this.edge] : []), E];
-    } else {
-      // 상의 속: 삽입 부위에서 몸 표면 바로 아래(1.5cm)를 따라 상의 맨 밑단(허리, 환자 오른쪽)까지 → 밑단에서 빠져나와 옆구리로 내려감
-      // 상의 속: 삽입 부위에서 몸 표면 2cm 아래를 따라 옆구리 아래쪽(상의 밑단 옆 끝, 매트리스 가까이)까지 숨겨서 지나감
-      //   → 상의 밑단 옆 끝에서 빠져나와 매트리스 위 bulb로 (옷 앞면을 뚫지 않음)
+    // 배액관 경로 공통 계산: 상의 속(몸 표면 2cm 아래)을 따라 옆구리 아래쪽(상의 밑단 옆 끝, 매트리스 가까이)까지 → 거기서 빠져나와 bulb로
       if (this.hemKey !== k + this.data.hem) {
         this.hemKey = k + this.data.hem;
         const hz = H.z - this.data.hem;                                   // 상의 밑단 높이(몸 길이 방향)
@@ -540,9 +531,19 @@ AFRAME.registerComponent('jp-drain', {
         const ty = sy(edgeX + 0.025, hz);
         this.tapeAt = new V(edgeX + 0.025, (ty !== null ? ty : BED.top + 0.06) + 0.003, hz);   // 교정 후 고정 테이프(상의 옆 밑단)
       }
+    let pts;
+    if (open) {
+      // 상의를 걷어 올렸을 때: 거즈 밑에서 나와 드러난 피부 위를 지나 옆구리로 내려감
+      if (this.openKey !== k) {
+        this.openKey = k;
+        const sy = (xx) => { const y = this.surfaceY(pt, xx, P.z, ruq.y + 0.4); return y !== null ? y : P.y; };
+        this.o1 = new V(P.x - 0.05, sy(P.x - 0.05) + 0.022, P.z); this.o2 = new V(P.x - 0.1, sy(P.x - 0.1) + 0.02, P.z + 0.01);
+      }
+      pts = [P, this.o1, this.o2, this.exit, E];
+    } else {
       pts = [P, ...this.inner, this.deep, this.exit, E];
-      this.tape.visible = !!this.data.fixed; this.tape.position.copy(this.tapeAt);
     }
+    this.tape.visible = !!this.data.fixed; this.tape.position.copy(this.tapeAt);
     const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, 0.0035, 6, false);
     if (this.tube) { this.tube.geometry.dispose(); this.tube.geometry = geo; }
     else { this.tube = new THREE.Mesh(geo, this.tubeMat); this.el.sceneEl.object3D.add(this.tube); }
@@ -735,31 +736,27 @@ AFRAME.registerComponent('abd-wound', {
       return new T.Mesh(geo, mat);
     };
     // ② 위치 잡기 (단위 m). JP 삽입 부위는 jp-drain과 똑같이 계산해서 관이 거즈 밑으로 들어가게 함
-    const ruq = a.clone().lerp(b, 0.6), jpW = new V(ruq.x - 0.11, 0, ruq.z);
-    const sA = S(a), sB = S(b), sJ = S(jpW), tJ = Tt(jpW);
-    const umb = { s: sA * 0.35, t: 0 };                 // 배꼽 포트
-    const epi = { s: sB, t: -0.008 };                   // 명치 아래 포트
-    const mcl = { s: sJ + 0.035, t: tJ - 0.07 };        // 오른쪽 갈비뼈 아래(안쪽) 포트
-    const jp  = { s: sJ, t: tJ - 0.005 };               // 오른쪽 갈비뼈 아래(바깥쪽) 포트 = JP 삽입 부위
+    // ② 위치 잡기 (s = 골반 관절에서 머리 쪽 m, t = 환자 오른쪽 m). 수술 부위는 환자 오른쪽 아랫배, 바지 바로 위
+    //    JP 삽입 부위는 jp-drain과 같은 식(골반에서 머리 쪽 0.07, 오른쪽 0.09)으로 맞춰 관이 거즈 밑에서 나오게 함
+    const jp  = { s: 0.07, t: 0.09 };                   // 오른쪽 아랫배 = JP 삽입 부위 (oozing 거즈)
+    const umb = { s: 0.15, t: 0 };                      // 배꼽 쪽 포트 (깨끗한 거즈)
     // 기존 것 지우고 새로 만들기
     this.root.children.filter(o => o !== this.opened).forEach(o => this.root.remove(o));
     this.opened.clear();
-    // ③ 열린 부분: 피부 + 사방의 환자복 천
-    const s0 = umb.s - 0.05, s1 = epi.s + 0.045, tL = -0.1, tR = tJ + 0.065;
+    // ③ 열린 모습: 상의를 살짝 위로 걷어 올려 아랫배가 드러남 (바지 허리 ~ 걷어 올린 상의 사이)
+    const s0 = 0.0, s1 = 0.22, tL = -0.17, tR = 0.19;
     const sm = (s0 + s1) / 2, tm = (tL + tR) / 2, Ls = s1 - s0, Wt = tR - tL;
-    this.opened.add(sheet(sm, tm, Ls, Wt, 0.004, this.skinMat, 20));
-    const roll = (x, y) => 0.012 * Math.sin(Math.PI * y);          // 말려서 접힌 천의 볼록함
-    this.opened.add(sheet(sm, tL - 0.03, Ls + 0.06, 0.06, 0.008, this.gownMat, 10, roll));   // 환자 왼쪽으로 젖힌 상의
-    this.opened.add(sheet(sm, tR + 0.03, Ls + 0.06, 0.06, 0.008, this.gownMat, 10, roll));   // 환자 오른쪽으로 젖힌 상의
-    this.opened.add(sheet(s1 + 0.02, tm, 0.04, Wt + 0.12, 0.008, this.gownMat, 10));         // 위쪽(가슴): 닫혀 있는 상의
-    this.opened.add(sheet(s0 - 0.02, tm, 0.04, Wt + 0.12, 0.008, this.gownMat, 10));         // 아래쪽: 하의 허리
-    // ④ 거즈 4개 (테이프 포함). JP 거즈에만 얼룩
+    this.opened.add(sheet(sm, tm, Ls, Wt, 0.014, this.skinMat, 22));                         // 드러난 피부
+    const roll = (x, y) => 0.028 * Math.sin(Math.PI * x);                                   // 걷어 올려 말린 상의 (볼록하게)
+    this.opened.add(sheet(s1 + 0.03, tm, 0.06, Wt + 0.12, 0.012, this.gownMat, 12, roll));   // 위: 걷어 올린 상의 밑단
+    this.opened.add(sheet(s0 - 0.015, tm, 0.03, Wt + 0.12, 0.014, this.gownMat, 8));         // 아래: 바지 허리
+    // ④ 거즈 (테이프 포함). JP 거즈에만 얼룩
     const pad = (o, size, ooze) => {
       const tex = this.gauzeTex(ooze), m = new T.MeshStandardMaterial({ map: tex, roughness: 0.95, alphaTest: 0.1, side: T.DoubleSide });
       const k = 1.35, thick = (x, y) => 0.004 * Math.sin(Math.PI * Math.min(1, Math.max(0, (x - 0.13) / 0.74))) * Math.sin(Math.PI * Math.min(1, Math.max(0, (y - 0.13) / 0.74)));
-      this.opened.add(sheet(o.s, o.t, size * k, size * k, 0.008, m, 14, thick));
+      this.opened.add(sheet(o.s, o.t, size * k, size * k, 0.018, m, 14, thick));
     };
-    pad(umb, 0.06, 0); pad(epi, 0.05, 0); pad(mcl, 0.045, 0); pad(jp, 0.075, this.data.ooze);
+    pad(umb, 0.05, 0); pad(jp, 0.075, this.data.ooze);
     // ⑤ 클릭 영역: 배 위를 덮는 보이지 않는 판 (닫혀 있을 때도 클릭 가능)
     this.root.add(sheet(sm, tm, Ls, Wt, 0.025, this.hitMat, 6));
     this.opened.visible = !!this.data.open;
@@ -1442,7 +1439,7 @@ function showMsg(html){
   <!-- BP 커프 (환자 왼팔, 모니터와 호스로 연결) — 클릭하면 오른팔로 옮김 (E6) -->
   <!-- JP 배액관: 환자 오른쪽 상복부에서 나와 상의 속을 지나 상의 맨 밑단에서 빠져나와 bulb로 (자리는 자동으로 잡힘)
        hem: 상의 밑단 위치(골반에서 머리 쪽으로 m). 관이 바지에서 나오면 키우고(0.16), 상의 중간에서 나오면 줄이세요(0.10) -->
-  <a-entity id="jp" class="clickable" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed; cmp: #jpc; hem: 0.13" position="-0.5 0.6 -2.4"></a-entity>
+  <a-entity id="jp" class="clickable" gltf-model="url(jp_bag.glb)" jp-drain="patient: #patient; bed: #bed; cmp: #jpc; hem: 0.06" position="-0.5 0.6 -2.4"></a-entity>
   <!-- 압축된 JP bulb (E3 교정 후 모습): 처음엔 숨김, 자리는 jp-drain이 부푼 bulb와 같은 곳에 잡아 줌 -->
   <a-entity id="jpc" class="clickable" gltf-model="url(jp_compressed.glb)" visible="false" position="-0.5 0.6 -2.4" scale="0.05 0.05 0.028" rotation="-90 0 0"></a-entity>
 
