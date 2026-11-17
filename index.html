@@ -775,12 +775,17 @@ AFRAME.registerComponent('abd-wound', {
     this.root.children.filter(o => o !== this.opened).forEach(o => this.root.remove(o));
     this.opened.clear();
     // ③ 열린 모습: 상의를 명치 아래까지 걷어 올려 배 전체(포트 4곳)가 드러남 (바지 허리 ~ 걷어 올린 상의 사이)
-    const s0 = -0.01, s1 = 0.33, tL = -0.2, tR = 0.22;
+    const s0 = -0.01, s1 = 0.33, tL = -0.17, tR = 0.2;
     const sm = (s0 + s1) / 2, tm = (tL + tR) / 2, Ls = s1 - s0, Wt = tR - tL;
     this.opened.add(sheet(sm, tm, Ls, Wt, 0.022, this.skinMat, 34));                          // 드러난 피부
-    const roll = (x, y) => 0.045 * Math.sin(Math.PI * x);                                   // 걷어 올려 두툼하게 말린 상의
-    this.opened.add(sheet(s1 + 0.04, tm, 0.09, Wt + 0.14, 0.022, this.gownMat, 14, roll));   // 위: 걷어 올린 상의
-    this.opened.add(sheet(s0 - 0.02, tm, 0.04, Wt + 0.14, 0.024, this.gownMat, 8));          // 아래: 바지 허리
+    // 젖혀진 상의: 드러난 배 둘레를 천이 접혀 말린 띠로 감싸서(위·양옆) 구멍이 아니라 옷을 걷어 젖힌 모습으로 보이게 함
+    //  띠 양끝은 얇아지게(끝이 뭉툭하게 튀어나오지 않게), 몸 밖으로는 나가지 않게 함
+    const fold = (hgt) => (x, y) => hgt * Math.sin(Math.PI * x) * Math.min(1, Math.sin(Math.PI * y) * 3);   // x: 띠 폭 방향 볼록 / y: 끝으로 갈수록 얇게
+    const foldS = (hgt) => (x, y) => hgt * Math.sin(Math.PI * y) * Math.min(1, Math.sin(Math.PI * x) * 3);   // 세로 띠용
+    this.opened.add(sheet(s1 + 0.03, tm, 0.08, Wt + 0.02, 0.022, this.gownMat, 16, fold(0.04)));            // 위: 명치 위로 걷어 올린 상의
+    this.opened.add(sheet(sm + 0.01, tL - 0.01, Ls + 0.06, 0.05, 0.022, this.gownMat, 16, foldS(0.025)));   // 환자 왼쪽으로 젖힌 자락
+    this.opened.add(sheet(sm + 0.01, tR + 0.01, Ls + 0.06, 0.05, 0.022, this.gownMat, 16, foldS(0.025)));   // 환자 오른쪽으로 젖힌 자락
+    this.opened.add(sheet(s0 - 0.015, tm, 0.035, Wt + 0.02, 0.024, this.gownMat, 8, fold(0.008)));          // 아래: 바지 허리
     // ④ 거즈 (테이프 포함). JP 거즈에만 얼룩
     const pad = (o, size, ooze) => {
       const tex = this.gauzeTex(ooze), m = this.front(new T.MeshStandardMaterial({ map: tex, roughness: 0.95, alphaTest: 0.1, side: T.DoubleSide }));
