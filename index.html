@@ -1162,6 +1162,46 @@ AFRAME.registerComponent('bed-tilt', {
   }
 });
 
+/* 소변백(유치도뇨 배액백, urine_bag.glb): 환자 오른쪽 침대 프레임에 걸림 (방광보다 낮게, 바닥에 닿지 않게)
+   도뇨관: 사타구니(바지 속) → 오른쪽 허벅지 옆으로 나와 → 매트리스 가장자리 → 침대 옆으로 내려가 → 소변백 줄 끝(연결부)
+   소변백 위치를 옮기면(조절창 '소변백') 관도 따라감 */
+AFRAME.registerComponent('urine-bag', {
+  schema: { patient: {type: 'selector'}, bed: {type: 'selector'}, end: {type: 'vec3', default: {x: 0.175, y: -0.298, z: 0}} },
+  init: function () {
+    this.mat = new THREE.MeshStandardMaterial({ color: '#f1efe6', roughness: 0.35, transparent: true, opacity: 0.92 });
+  },
+  bone: function (root, n) { return root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n); },
+  tick: function () {
+    const pt = this.data.patient.getObject3D('mesh'), bag = this.el.getObject3D('mesh'); if (!pt || !bag) return;
+    const LU = this.bone(pt, 'LeftUpLeg'), RU = this.bone(pt, 'RightUpLeg'), RL = this.bone(pt, 'RightLeg'); if (!LU || !RU || !RL) return;
+    const V = THREE.Vector3, lu = LU.getWorldPosition(new V()), ru = RU.getWorldPosition(new V()), rl = RL.getWorldPosition(new V());
+    this.el.object3D.updateMatrixWorld(true);
+    const E = this.el.object3D.localToWorld(new V(this.data.end.x, this.data.end.y, this.data.end.z));
+    const bedX = this.data.bed ? this.data.bed.object3D.position.x : BED.x, edge = bedX - 0.39;   // 매트리스 오른쪽 가장자리(환자 오른쪽 = -x)
+    const key = [lu, ru, rl, E].map(v => v.toArray().map(x => x.toFixed(3)).join()).join('|');
+    if (key === this.last) return; this.last = key;
+    const top = BED.top;
+    const leg = rl.clone().sub(ru); leg.y = 0; leg.normalize();
+    const crotch = lu.clone().add(ru).multiplyScalar(0.5).addScaledVector(leg, 0.07); crotch.y = top + 0.06;   // 바지 속 사타구니
+    const thigh = ru.clone().lerp(rl, 0.4); thigh.x -= 0.09; thigh.y = top + 0.035;                        // 오른쪽 허벅지 옆으로 나온 곳
+    const z = thigh.z + 0.05;
+    const pts = [
+      crotch,
+      ru.clone().lerp(rl, 0.25).setY(top + 0.05),
+      thigh,
+      new V(edge + 0.02, top + 0.012, z),          // 매트리스 위
+      new V(edge - 0.015, top - 0.03, z + 0.01),   // 가장자리에서 꺾여 내려감
+      new V(edge - 0.04, (top + E.y) / 2, (z + E.z) / 2),
+      new V(E.x, E.y - 0.06, E.z),                 // 소변백 줄 끝 아래로 살짝 처졌다가 연결
+      E
+    ];
+    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.004, 6, false);
+    if (this.tube) { this.tube.geometry.dispose(); this.tube.geometry = geo; }
+    else { this.tube = new THREE.Mesh(geo, this.mat); this.el.sceneEl.object3D.add(this.tube); }
+  },
+  remove: function () { if (this.tube) this.tube.parent.remove(this.tube); }
+});
+
 function showMsg(html){
   const m = document.getElementById('toast'); m.innerHTML = html; m.style.display = 'block';
   clearTimeout(showMsg.t); showMsg.t = setTimeout(() => m.style.display = 'none', 6000);
@@ -1256,6 +1296,7 @@ function showMsg(html){
       <option value="mstand">모니터 스탠드</option>
       <option value="monitor">모니터</option>
       <option value="jp">JP 배액 bulb</option>
+      <option value="ubag">소변백</option>
       <option value="cabinet">서랍장</option>
       <option value="gbed">보호자 침대</option>
       <option value="wastebox">의료폐기물 용기</option>
@@ -1534,6 +1575,9 @@ function showMsg(html){
   <a-entity id="abdwound" class="clickable" abd-wound="patient: #patient; ooze: 0.6; open: false"></a-entity>
 
   <a-entity id="cuff" class="clickable" bp-cuff="patient: #patient; monitor: #monitor; side: left"></a-entity>
+
+  <!-- 소변백: 환자 오른쪽 침대 프레임(발 쪽)에 걸림. 고리 높이 약 50cm, 바닥에서 약 8cm 떠 있음. 도뇨관은 urine-bag이 그려 줌 -->
+  <a-entity id="ubag" gltf-model="url(urine_bag.glb)" urine-bag="patient: #patient; bed: #bed" scale="0.45 0.45 0.45" position="-0.5 0.29 -1.85" rotation="0 -90 0"></a-entity>
 
   <!-- 3-way (클릭 가능) -->
   <a-entity id="threeway" class="clickable"></a-entity>
