@@ -728,22 +728,33 @@ AFRAME.registerComponent('abd-wound', {
       if (!grid.has(kk) || grid.get(kk) < v.y) grid.set(kk, v.y);
     }
     const base = (a.y + b.y) / 2 + 0.1;
-    const hf = (s, t) => {                    // (s, t) 위치의 몸 표면 높이
-      const i0 = Math.floor(s / CELL), j0 = Math.floor(t / CELL);
-      for (let R = 1; R <= 3; R++) {
-        let m = -1e9;
-        for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) { const y = grid.get((i0 + i) + ',' + (j0 + j)); if (y !== undefined && y > m) m = y; }
-        if (m > -1e9) return m;
-      }
-      return base;
+    // 매끈한 높이 지도 한 장을 미리 만들어 모든 판(피부·상의·거즈)이 같이 씀
+    //  ① 주변 3cm 안에서 가장 높은 점(환자복 주름 꼭대기)을 택해 구멍·뾰족한 골을 없앰 → ② 여러 번 부드럽게 다듬음
+    const I0 = -20, I1 = 50, J0 = -32, J1 = 32, R = 3, NI = I1 - I0 + 1, NJ = J1 - J0 + 1;
+    let F = [];
+    for (let i = 0; i < NI; i++) { F[i] = []; for (let j = 0; j < NJ; j++) {
+      let m = -1e9;
+      for (let di = -R; di <= R; di++) for (let dj = -R; dj <= R; dj++) { const y = grid.get((i + I0 + di) + ',' + (j + J0 + dj)); if (y !== undefined && y > m) m = y; }
+      F[i][j] = m;
+    } }
+    let filled = 0;
+    for (let i = 0; i < NI; i++) for (let j = 0; j < NJ; j++) if (F[i][j] > -1e9) filled = Math.max(filled, F[i][j]);
+    for (let i = 0; i < NI; i++) for (let j = 0; j < NJ; j++) if (F[i][j] <= -1e9) F[i][j] = filled > -1e9 ? filled : base;
+    for (let pass = 0; pass < 6; pass++) {
+      const G = F.map(r => r.slice());
+      for (let i = 1; i < NI - 1; i++) for (let j = 1; j < NJ - 1; j++)
+        G[i][j] = (F[i][j] * 4 + F[i - 1][j] + F[i + 1][j] + F[i][j - 1] + F[i][j + 1]) / 8;
+      F = G;
+    }
+    const hf = (s, t) => {                    // (s, t) 위치의 매끈한 몸 표면 높이 (사이값은 비례 계산)
+      const x = Math.min(NI - 1.001, Math.max(0, s / CELL - I0)), y = Math.min(NJ - 1.001, Math.max(0, t / CELL - J0));
+      const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j;
+      return F[i][j] * (1 - fx) * (1 - fy) + F[i + 1][j] * fx * (1 - fy) + F[i][j + 1] * (1 - fx) * fy + F[i + 1][j + 1] * fx * fy;
     };
     // 판 하나(거즈·피부·천)를 몸 곡면에 맞춰 만듦: 가운데 (s0,t0), 크기 L(머리 방향)×Wd(옆 방향)
     const sheet = (s0, t0, L, Wd, lift, mat, n, bump) => {
       n = n || 14; const N = (n + 1) * (n + 1), P = new Float32Array(N * 3), UV = new Float32Array(N * 2), idx = [];
       const hs = []; for (let i = 0; i <= n; i++) { hs[i] = []; for (let j = 0; j <= n; j++) hs[i][j] = hf(s0 + (i / n - 0.5) * L, t0 + (j / n - 0.5) * Wd); }
-      const raw = hs.map(r => r.slice());
-      for (let pass = 0; pass < 2; pass++)     // 울퉁불퉁하지 않게 살짝 매끄럽게 (단, 몸 표면보다 낮아지지 않게 → 환자복이 뚫고 나오지 않음)
-        for (let i = 1; i < n; i++) for (let j = 1; j < n; j++) hs[i][j] = Math.max(raw[i][j], (hs[i][j] * 4 + hs[i - 1][j] + hs[i + 1][j] + hs[i][j - 1] + hs[i][j + 1]) / 8);
       for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
         const s = s0 + (i / n - 0.5) * L, t = t0 + (j / n - 0.5) * Wd, q = i * (n + 1) + j;
         const y = hs[i][j] + lift + (bump ? bump(i / n, j / n) : 0), p = W(s, t, y);
@@ -766,16 +777,16 @@ AFRAME.registerComponent('abd-wound', {
     // ③ 열린 모습: 상의를 명치 아래까지 걷어 올려 배 전체(포트 4곳)가 드러남 (바지 허리 ~ 걷어 올린 상의 사이)
     const s0 = -0.01, s1 = 0.33, tL = -0.2, tR = 0.22;
     const sm = (s0 + s1) / 2, tm = (tL + tR) / 2, Ls = s1 - s0, Wt = tR - tL;
-    this.opened.add(sheet(sm, tm, Ls, Wt, 0.02, this.skinMat, 30));                          // 드러난 피부
+    this.opened.add(sheet(sm, tm, Ls, Wt, 0.022, this.skinMat, 34));                          // 드러난 피부
     const roll = (x, y) => 0.045 * Math.sin(Math.PI * x);                                   // 걷어 올려 두툼하게 말린 상의
-    this.opened.add(sheet(s1 + 0.04, tm, 0.09, Wt + 0.14, 0.018, this.gownMat, 14, roll));   // 위: 걷어 올린 상의
-    this.opened.add(sheet(s0 - 0.02, tm, 0.04, Wt + 0.14, 0.02, this.gownMat, 8));          // 아래: 바지 허리
+    this.opened.add(sheet(s1 + 0.04, tm, 0.09, Wt + 0.14, 0.022, this.gownMat, 14, roll));   // 위: 걷어 올린 상의
+    this.opened.add(sheet(s0 - 0.02, tm, 0.04, Wt + 0.14, 0.024, this.gownMat, 8));          // 아래: 바지 허리
     // ④ 거즈 (테이프 포함). JP 거즈에만 얼룩
     const pad = (o, size, ooze) => {
       const tex = this.gauzeTex(ooze), m = this.front(new T.MeshStandardMaterial({ map: tex, roughness: 0.95, alphaTest: 0.1, side: T.DoubleSide }));
       m.polygonOffsetFactor = -8; m.polygonOffsetUnits = -8;   // 피부 판보다 더 앞에
       const k = 1.35, thick = (x, y) => 0.004 * Math.sin(Math.PI * Math.min(1, Math.max(0, (x - 0.13) / 0.74))) * Math.sin(Math.PI * Math.min(1, Math.max(0, (y - 0.13) / 0.74)));
-      this.opened.add(sheet(o.s, o.t, size * k, size * k, 0.026, m, 14, thick));
+      this.opened.add(sheet(o.s, o.t, size * k, size * k, 0.027, m, 14, thick));
     };
     // 복강경 담낭절제술 포트 4곳: 배꼽 · 명치 아래 · 오른쪽 갈비뼈 아래 · JP 삽입 부위(oozing)
     pad(umb, 0.05, 0); pad({ s: 0.28, t: -0.01 }, 0.045, 0); pad({ s: 0.22, t: 0.14 }, 0.04, 0); pad(jp, 0.075, this.data.ooze);
