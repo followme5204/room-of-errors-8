@@ -1173,20 +1173,30 @@ function showMsg(html){
   #roeZoom .zt{font-size:16px;font-weight:bold} #roeZoom .zh{font-size:13px;opacity:.8}
   #roeZoom .row{margin-top:0;justify-content:center}
   body.zooming #toast{bottom:150px}
+  #zoomCtl{position:fixed;right:10px;bottom:14px;z-index:19;display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:center}
+  #zoomCtl button{border:0;border-radius:10px;padding:10px 12px;font-size:16px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer;font-family:inherit}
+  #zoomCtl b{background:rgba(20,30,45,.85);color:#fff;border-radius:8px;padding:3px 0;font-size:14px}
+  a-scene canvas{touch-action:none}
   #roeResult table,#roePop table{border-collapse:collapse;width:100%;font-size:14px} #roeResult td,#roePop td{border:1px solid #ddd;padding:5px 7px;vertical-align:top}
 </style>
 <div id="roeHud">⏱ <b id="roeTimer">10:00</b> · 찾은 오류 <b id="roeFound">0</b>/8
   <button class="rb r-blue" onclick="openItem('chart')">📋 처방·차트</button>
   <button class="rb r-red" onclick="if(confirm('종료하고 결과를 볼까요?'))roeFinish()">종료 · 결과</button>
   <button id="roeBack" class="rb r-gray" style="display:none" onclick="backView()">↩ 원래 시점</button></div>
-<div id="roeZoom"><div class="zt" id="roeZoomTitle"></div><div class="zh">가까이에서 직접 관찰하세요. 처방은 위쪽 [📋 처방·차트]에서 확인할 수 있어요.</div>
+<div id="roeZoom"><div class="zt" id="roeZoomTitle"></div><div class="zh">확대해서 잘 살펴본 뒤 판단하세요. 처방은 위쪽 [📋 처방·차트]에서 확인할 수 있어요.</div>
   <div class="row">
-    <button class="rb r-gray" onclick="zoomStep(-1)">➕ 더 가까이</button>
-    <button class="rb r-gray" onclick="zoomStep(1)">➖ 멀리</button>
     <button class="rb r-red" onclick="zoomReport()">오류입니다</button>
     <button class="rb r-green" onclick="zoomNormal()">정상입니다</button>
-    <button class="rb r-gray" onclick="zoomClose()">↩ 돌아가기</button>
+    <button class="rb r-blue" onclick="zoomGo()">📍 가까이 가기</button>
+    <button class="rb r-gray" onclick="zoomClose()">닫기</button>
   </div></div>
+<!-- 🔍 화면 확대 단추 (두 손가락 벌리기 · 마우스 휠로도 확대) -->
+<div id="zoomCtl">
+  <button onclick="setZoom(VIEWZ.z*1.4)">🔍＋</button>
+  <b id="zoomVal">1.0×</b>
+  <button onclick="setZoom(VIEWZ.z/1.4)">🔍－</button>
+  <button onclick="setZoom(1)">원래 크기</button>
+</div>
 <div id="roePop" class="hidden"><div class="card"><h3 id="roeTitle"></h3><div id="roeBody"></div><div class="row" id="roeBtns"></div></div></div>
 <div id="roeResult" class="hidden"><div class="card" id="roeResultBody"></div></div>
 <div id="views" style="position:fixed;top:48px;right:8px;z-index:11;display:flex;flex-direction:column;gap:6px">
@@ -1501,7 +1511,7 @@ function showMsg(html){
   <!-- 보는 사람: 시작 시점 = 폴대 쪽 (환자 오른편, 수액폴대·펌프·PCA·3-way가 잘 보임) -->
   <a-entity laser-controls="hand: right" raycaster="objects: .clickable"></a-entity>
   <a-entity id="rig" position="-1.45 0 -1.25" rotation="0 -45 0">
-    <a-camera id="cam" position="0 1.55 0" look-controls wasd-controls="acceleration:20"></a-camera>
+    <a-camera id="cam" position="0 1.55 0" look-controls="mouseEnabled: false; touchEnabled: false" wasd-controls="acceleration:20"></a-camera>
   </a-entity>
 </a-scene>
 
@@ -1598,8 +1608,7 @@ function openPop(title, body, btns){
   $r('roePop').classList.remove('hidden');
 }
 function closePop(){ $r('roePop').classList.add('hidden'); }
-/* 🔍 줌인: 물건을 누르면 바로 그 물건 앞 약 45cm로 다가가 내려다봄(설명 글 없이 직접 관찰).
-   [➕ 더 가까이]/[➖ 멀리]로 거리 조절, [↩ 돌아가기]로 원래 시점 */
+/* 📍 가까이 가기: 판단 띠에서 누르면 그 물건 앞 약 45cm로 걸어가 내려다봄. [↩ 원래 시점]으로 돌아옴 */
 const FOCUS = { e8:'railR', n_rail:'railL', e7:'remote', e1:'idband', e2:'abdwound', e3:'jp', e4:'pumpscreen', e5:'threeway', e6:'cuff', n_iv:'ivsite', n_fluid:'ivbag', n_pca:'pca', n_dress:'abdwound' };
 let savedView = null;
 function getView(){
@@ -1621,18 +1630,50 @@ function focusOn(id, dist){
   setView(pos.x, pos.z, yaw, pitch, h); closePop();
   $r('roeBack').style.display = 'inline-block';
 }
-function showZoom(id){            // 줌인 + 아래쪽 판단 버튼
-  ZOOM.id = id; ZOOM.dist = 0.45; focusOn(id, ZOOM.dist);
+function showZoom(id){            // 물건을 누르면 아래쪽에 판단 버튼 (시점은 그대로)
+  ZOOM.id = id;
   $r('roeZoomTitle').textContent = '🔍 ' + ITEMS[id].title;
   $r('roeZoom').style.display = 'flex'; document.body.classList.add('zooming');
 }
 function hideZoom(){ ZOOM.id = null; $r('roeZoom').style.display = 'none'; document.body.classList.remove('zooming'); }
-function zoomStep(k){             // k=-1 더 가까이 / k=1 멀리 (20cm ~ 1m)
-  if (!ZOOM.id) return; ZOOM.dist = Math.min(1.0, Math.max(0.2, ZOOM.dist + k * 0.12)); focusOn(ZOOM.id, ZOOM.dist);
-}
+function zoomGo(){ if (ZOOM.id) focusOn(ZOOM.id, 0.45); }   // 원하면 그 물건 앞으로 걸어가기 ([↩ 원래 시점]으로 돌아옴)
 function zoomReport(){ const id = ZOOM.id; hideZoom(); if (id) report(id); }
-function zoomNormal(){ hideZoom(); backView(); showMsg('정상으로 판단했어요.'); }
-function zoomClose(){ hideZoom(); backView(); }
+function zoomNormal(){ hideZoom(); showMsg('정상으로 판단했어요.'); }
+function zoomClose(){ hideZoom(); }
+
+/* ===== 화면 확대(줌인) · 둘러보기 =====
+   첫 화면에서 바로: 두 손가락 벌리기/오므리기 · 마우스 휠 · [🔍＋/－] 단추로 확대(1~6배)
+   한 손가락(마우스) 끌기 = 둘러보기. 확대할수록 천천히 돌아서 작은 글씨도 맞추기 쉬움 */
+const VIEWZ = { z: 1, last: 0 };
+function setZoom(z){
+  VIEWZ.z = Math.min(6, Math.max(1, z));
+  $r('cam').setAttribute('camera', 'zoom', VIEWZ.z);
+  $r('zoomVal').textContent = VIEWZ.z.toFixed(1) + '×';
+}
+(function setupLook(){
+  const scene = document.querySelector('a-scene');
+  if (!scene || !scene.canvas || !$r('cam').components['look-controls']) { setTimeout(setupLook, 200); return; }
+  const cv = scene.canvas, pts = new Map(); let moved = 0, pinch0 = 0, zoom0 = 1;
+  const lc = () => $r('cam').components['look-controls'];
+  const gap = () => { const a = [...pts.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); };
+  cv.addEventListener('pointerdown', e => {
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 1) moved = 0;
+    if (pts.size === 2) { pinch0 = gap(); zoom0 = VIEWZ.z; }
+  });
+  cv.addEventListener('pointermove', e => {
+    const p = pts.get(e.pointerId); if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    if (pts.size === 1) {
+      moved += Math.abs(dx) + Math.abs(dy);
+      const k = 0.004 / VIEWZ.z, l = lc();
+      l.yawObject.rotation.y += dx * k;
+      l.pitchObject.rotation.x = Math.max(-1.5, Math.min(1.5, l.pitchObject.rotation.x + dy * k));
+    } else if (pts.size === 2 && pinch0 > 0) { moved = 99; setZoom(zoom0 * gap() / pinch0); }
+  });
+  const up = e => { pts.delete(e.pointerId); if (moved > 8) VIEWZ.last = Date.now(); if (pts.size < 2) pinch0 = 0; };
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => cv.addEventListener(t, up));
+  cv.addEventListener('wheel', e => { e.preventDefault(); setZoom(VIEWZ.z * Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+})();
 function backView(){
   if (!savedView) return; const s = savedView, rig = $r('rig'), cam = $r('cam'), lc = cam.components['look-controls'];
   rig.setAttribute('position', s.p.x + ' 0 ' + s.p.z); rig.setAttribute('rotation', '0 ' + (s.ry * 180 / Math.PI) + ' 0');
@@ -1640,6 +1681,7 @@ function backView(){
   savedView = null; $r('roeBack').style.display = 'none';
 }
 window.openItem = function(id){
+  if (id !== 'chart' && Date.now() - VIEWZ.last < 350) return;   // 둘러보기·확대하다 손을 뗀 것은 클릭 아님
   const it = ITEMS[id];
   if (!st.running) { showMsg('먼저 [시작하기]를 눌러 주세요.'); return; }
   if (id === 'chart') { openPop(it.title, chartHTML(), [['닫기','r-gray',closePop]]); return; }
@@ -1699,7 +1741,7 @@ function roeTick(){
 function roeStart(){
   $r('intro').classList.add('hidden'); if (st.running) return;
   st.running = true; $r('roeHud').style.display = 'flex'; st.timer = setInterval(roeTick, 1000);
-  showMsg('📋 위쪽 [처방·차트]로 처방을 먼저 확인하세요.');
+  showMsg('📋 위쪽 [처방·차트]로 처방을 먼저 확인하세요.<br>🔍 두 손가락으로 벌리거나 오른쪽 아래 [🔍＋]로 확대해서 하나씩 살펴보세요.');
 }
 function roeFinish(){
   if (!st.running) return; st.running = false; clearInterval(st.timer); closePop(); hideZoom();
